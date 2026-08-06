@@ -1,6 +1,6 @@
 """Production data entry page."""
 
-from datetime import datetime
+from datetime import datetime, time
 
 import streamlit as st
 
@@ -18,8 +18,7 @@ def render() -> None:
         left, right = st.columns(2)
         material = left.selectbox("材料", MATERIALS)
         skill = right.selectbox("技能等级", SKILL_LEVELS)
-        observed_date = left.date_input("日期")
-        observed_time = right.time_input("时间")
+        observed_date = st.date_input("日期")
         quantity = left.number_input("生产数量", min_value=1, value=default_quantity, step=1)
         red = right.number_input("红色数量", min_value=0, value=0, step=1)
         remark = st.text_area("备注", max_chars=500)
@@ -27,7 +26,7 @@ def render() -> None:
     if submitted:
         record = ProductionInput(
             material=material, skill_level=skill, quantity=quantity, red_quantity=red,
-            datetime=datetime.combine(observed_date, observed_time), remark=remark,
+            datetime=datetime.combine(observed_date, time.min), remark=remark,
         )
         with session_scope() as session:
             ProbabilityRepository(session).add_log(

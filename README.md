@@ -27,7 +27,7 @@ streamlit run app.py
 
 ## CSV 格式
 
-必需列：`datetime, material, skill_level, quantity, red_quantity`。可选列：`remark`。
+必需列：`datetime, material, skill_level, quantity, red_quantity`。可选列：`remark`。应用内只需选择日期，并以当天 `00:00:00` 保存；导入时仍兼容带时间的日期值。
 任意一行验证失败时整个文件都会拒绝导入，并显示源 CSV 的行号。
 
 ## 测试
