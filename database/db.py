@@ -15,7 +15,7 @@ class Base(DeclarativeBase):
 
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False},
+    connect_args={"check_same_thread": False, "timeout": 30},
     pool_pre_ping=True,
 )
 
@@ -25,6 +25,9 @@ def enable_sqlite_foreign_keys(dbapi_connection: object, _: object) -> None:
     """Enable referential integrity for each SQLite connection."""
     cursor = dbapi_connection.cursor()  # type: ignore[attr-defined]
     cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA synchronous=FULL")
+    cursor.execute("PRAGMA busy_timeout=30000")
     cursor.close()
 
 

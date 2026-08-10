@@ -8,7 +8,7 @@ from config.settings import MATERIALS, SKILL_LEVELS
 from database.db import session_scope
 from database.repository import ProbabilityRepository
 from services.validation import ProductionInput
-from ui import configure_page, get_setting, page_guard
+from ui import configure_page, get_setting, load_logs, page_guard
 
 
 def render() -> None:
@@ -22,7 +22,7 @@ def render() -> None:
         quantity = left.number_input("生产数量", min_value=1, value=default_quantity, step=1)
         red = right.number_input("红色数量", min_value=0, value=0, step=1)
         remark = st.text_area("备注", max_chars=500)
-        submitted = st.form_submit_button("保存记录", type="primary", width="stretch")
+        submitted = st.form_submit_button("保存并累计", type="primary", width="stretch")
     if submitted:
         record = ProductionInput(
             material=material, skill_level=skill, quantity=quantity, red_quantity=red,
@@ -33,7 +33,41 @@ def render() -> None:
                 record.material, record.skill_level, record.quantity, record.red_quantity,
                 record.datetime, record.remark,
             )
-        st.success("记录已保存。")
+        st.success("记录已保存并计入累计数据。")
+
+    logs = load_logs()
+    st.divider()
+    st.subheader("累计保存状态")
+    if logs.empty:
+        st.info("数据库中还没有生产记录。")
+        return
+
+    total_quantity = int(logs["quantity"].sum())
+    total_red = int(logs["red_quantity"].sum())
+    metric_columns = st.columns(3)
+    metric_columns[0].metric("已保存记录", f"{len(logs)} 条")
+    metric_columns[1].metric("累计生产", total_quantity)
+    metric_columns[2].metric(
+        "累计红色",
+        total_red,
+        help=f"累计掉率：{total_red / total_quantity:.2%}",
+    )
+
+    recent = logs.head(10).copy()
+    recent["日期"] = recent["datetime"].dt.strftime("%Y-%m-%d")
+    recent = recent.rename(columns={
+        "material": "材料",
+        "skill_level": "技能等级",
+        "quantity": "生产数量",
+        "red_quantity": "红色数量",
+        "remark": "备注",
+    })
+    st.caption("最近保存的 10 条记录")
+    st.dataframe(
+        recent[["日期", "材料", "技能等级", "生产数量", "红色数量", "备注"]],
+        hide_index=True,
+        width="stretch",
+    )
 
 
 configure_page("数据录入", "✍️")
