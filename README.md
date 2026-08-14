@@ -1,34 +1,61 @@
 # ProbabilityLab
 
-“这城有良田”生产掉率记录、统计分析与 Monte Carlo 模拟工具。
+《这城有良田》的本地单人概率研究平台，覆盖官匠营、马厩和灵禽院。
 
-## 功能
+## V1.1 功能
 
-- SQLite 持久化、完整 CRUD、搜索与筛选
-- 严格验证的原子化 CSV 导入和完整导出
-- 按材料与技能等级分析掉率、Wilson 95% 置信区间和样本质量
-- 二项检验、卡方检验、比例 z 检验服务
-- 支持 100,000 次以上的向量化 Monte Carlo 模拟
-- 自动搜索最符合真实观察的候选概率
-- Plotly 深色/浅色图表
+- 统一 `Category → Item → Observation` SQLAlchemy 数据模型
+- SQLite 持久化、事务化 CRUD、搜索、筛选和原子 CSV 导入
+- 官匠营材料及技能 9–12 分析
+- 马厩完整品质与 1–8 次搜索会话分析
+- 灵禽品质、种类分布和“品质 × 种类”分析
+- Wilson 95% 置信区间、精确二项检验、卡方检验和比例 z 检验
+- 可配置的绝对误差评级与追加样本量估计
+- 官匠营二项模拟、马厩/灵禽多项模拟、真实分布叠加
+- 三类系统的 Monte Carlo 概率拟合
+- 固定随机种子和 SimulationRun 元数据保存
+- Plotly 深色/浅色主题
+
+## 马厩概率说明
+
+数据库原样保存游戏显示的 `41% / 50% / 7% / 1%`，合计为 99%，不会静默归一化。
+
+- 字面显示模式：显式添加剩余 1% 为 `Other / 未说明`
+- 归一化模式：只在用户明确选择时用于模拟，并标注为“仅用于模拟的归一化概率”
+
+显示概率、观测概率、拟合概率和 Monte Carlo 模拟概率在界面中分别标识。
 
 ## 运行
 
-需要 Python 3.13+：
+目标运行环境为 Python 3.13+：
 
 ```bash
-python -m venv .venv
+python3.13 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 streamlit run app.py
 ```
 
-数据库会在首次启动时自动创建于 `data/probability.db`，并预置九种材料和默认设置。
+首次启动会在 `data/probability.db` 创建并预置：
 
-## CSV 格式
+- 3 个分类
+- 9 种材料、4 种马匹、4 种灵禽
+- 马厩与灵禽院的原始显示概率
+- 可配置的模拟和样本评级设置
 
-必需列：`datetime, material, skill_level, quantity, red_quantity`。可选列：`remark`。应用内只需选择日期，并以当天 `00:00:00` 保存；导入时仍兼容带时间的日期值。
-任意一行验证失败时整个文件都会拒绝导入，并显示源 CSV 的行号。
+旧版 `production_logs` 会一次性复制到统一 Observation 表，旧表不会删除，以保留原始观测。
+
+## 统一 CSV
+
+导出列：
+
+```text
+observed_at,category_type,item,level,attempt_count,
+green_count,blue_count,purple_count,orange_count,
+unaccounted_count,session_key,remark
+```
+
+仍兼容旧官匠营 CSV。任何一行验证失败时整批拒绝，并报告 CSV 源行号。
 
 ## 测试
 

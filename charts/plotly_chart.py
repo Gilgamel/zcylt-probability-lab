@@ -28,6 +28,44 @@ def histogram(values: object, title: str, x_label: str = "红色数量") -> go.F
     return px.histogram(x=values, title=title, labels={"x": x_label, "y": "频数"})
 
 
+def scatter(
+    frame: pd.DataFrame,
+    x: str,
+    y: str,
+    title: str,
+    color: str | None = None,
+) -> go.Figure:
+    """Create a scatter chart or a standard empty state."""
+    if frame.empty:
+        return empty_chart()
+    return px.scatter(frame, x=x, y=y, color=color, title=title)
+
+
+def box(
+    frame: pd.DataFrame,
+    x: str,
+    y: str,
+    title: str,
+    color: str | None = None,
+) -> go.Figure:
+    """Create a box plot or a standard empty state."""
+    if frame.empty:
+        return empty_chart()
+    return px.box(frame, x=x, y=y, color=color, title=title, points="all")
+
+
+def heatmap(
+    values: object,
+    x_labels: object,
+    y_labels: object,
+    title: str,
+) -> go.Figure:
+    """Create an annotated heatmap."""
+    return px.imshow(
+        values, x=x_labels, y=y_labels, text_auto=True, aspect="auto", title=title
+    )
+
+
 def apply_theme(figure: go.Figure, theme: str = "dark") -> go.Figure:
     template = "plotly_dark" if theme == "dark" else "plotly_white"
     figure.update_layout(template=template, margin={"l": 20, "r": 20, "t": 55, "b": 20})

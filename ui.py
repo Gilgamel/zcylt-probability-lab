@@ -10,6 +10,7 @@ from charts.plotly_chart import apply_theme
 from config.settings import LOG_DIR
 from database.db import init_database, session_scope
 from database.repository import ProbabilityRepository
+from services.statistics import SufficiencyThresholds
 
 logger.add(LOG_DIR / "probability_lab.log", rotation="5 MB", retention="14 days")
 
@@ -39,10 +40,34 @@ def load_logs() -> pd.DataFrame:
         return ProbabilityRepository(session).logs_dataframe()
 
 
+def load_observations(category_type: str | None = None) -> pd.DataFrame:
+    """Load unified observations, optionally restricted to one category."""
+    prepare_database()
+    with session_scope() as session:
+        return ProbabilityRepository(session).observations_dataframe(category_type)
+
+
 def get_setting(key: str, fallback: str) -> str:
     prepare_database()
     with session_scope() as session:
         return ProbabilityRepository(session).get_setting(key, fallback)
+
+
+def get_displayed_probabilities(category_type: str) -> dict[str, float]:
+    """Load raw displayed probability targets from SQLite."""
+    prepare_database()
+    with session_scope() as session:
+        return ProbabilityRepository(session).displayed_probabilities(category_type)
+
+
+def sufficiency_settings() -> tuple[SufficiencyThresholds, float]:
+    """Build sample precision configuration from persisted settings."""
+    thresholds = SufficiencyThresholds(
+        grade_a=float(get_setting("sufficiency_a_moe", "0.005")),
+        grade_b=float(get_setting("sufficiency_b_moe", "0.010")),
+        grade_c=float(get_setting("sufficiency_c_moe", "0.020")),
+    )
+    return thresholds, float(get_setting("target_margin_of_error", "0.005"))
 
 
 def show_chart(figure: object, key: str | None = None) -> None:
