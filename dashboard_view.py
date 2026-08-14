@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from charts.plotly_chart import bar, line
-from config.settings import BIRD_RANDOM, HORSE_SEARCH, MATERIAL_PRODUCTION
+from config.domain import BIRD_RANDOM, HORSE_SEARCH, MATERIAL_PRODUCTION
 from ui import get_displayed_probabilities, load_observations, show_chart
 
 

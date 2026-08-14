@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from config.settings import BIRD_RANDOM, BIRD_SPECIES, QUALITY_LABELS
+from config.domain import BIRD_RANDOM, BIRD_SPECIES, QUALITY_LABELS
 from services.statistics import (
     binomial_test,
     chi_square_goodness_of_fit,

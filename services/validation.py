@@ -5,7 +5,7 @@ from datetime import datetime as DateTime
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from config.settings import (
+from config.domain import (
     BIRD_RANDOM,
     BIRD_SPECIES,
     HORSE_BREEDS,

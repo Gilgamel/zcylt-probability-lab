@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import streamlit as st
 
-from config.settings import (
+from config.domain import (
     BIRD_RANDOM,
     BIRD_SPECIES,
     HORSE_BREEDS,

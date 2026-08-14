@@ -6,7 +6,7 @@ from datetime import datetime, time
 import pandas as pd
 import streamlit as st
 
-from config.settings import CATEGORIES, ITEMS_BY_CATEGORY
+from config.domain import CATEGORIES, ITEMS_BY_CATEGORY, MATERIAL_PRODUCTION
 from database.db import session_scope
 from database.repository import ProbabilityRepository
 from services.validation import ObservationInput, validate_csv, validate_observation_csv
@@ -68,7 +68,8 @@ def render() -> None:
                     )
                     level = st.number_input("等级", min_value=1, value=int(row["level"]))
                     attempts = st.number_input(
-                        "尝试次数", min_value=1, max_value=8 if category_type != "MATERIAL_PRODUCTION" else None,
+                        "尝试次数", min_value=1,
+                        max_value=8 if category_type != MATERIAL_PRODUCTION else None,
                         value=int(row["attempt_count"]),
                     )
                     quality_columns = st.columns(5)
@@ -130,7 +131,7 @@ def render() -> None:
                 legacy = validate_csv(imported)
                 records = [
                     ObservationInput(
-                        category_type="MATERIAL_PRODUCTION",
+                        category_type=MATERIAL_PRODUCTION,
                         item=record.material,
                         level=record.skill_level,
                         attempt_count=record.quantity,

@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from charts.plotly_chart import bar, histogram, line
-from config.settings import MATERIALS
+from config.domain import MATERIALS
 from services.statistics import sample_sufficiency
 from ui import configure_page, load_logs, page_guard, show_chart, sufficiency_settings
 

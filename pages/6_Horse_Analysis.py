@@ -7,7 +7,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from config.settings import (
+from config.domain import (
     HORSE_BREEDS,
     HORSE_PROBABILITY_WARNING,
     HORSE_SEARCH,

@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 from pydantic import ValidationError
 
-from config.settings import BIRD_RANDOM, HORSE_SEARCH
+from config.domain import BIRD_RANDOM, HORSE_SEARCH
 from services.validation import (
     ObservationInput,
     ProductionInput,

@@ -3,7 +3,7 @@
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
-from config.settings import BIRD_RANDOM, HORSE_SEARCH, MATERIAL_PRODUCTION
+from config.domain import BIRD_RANDOM, HORSE_SEARCH, MATERIAL_PRODUCTION
 from database.db import Base, _seed_reference_data
 from database.models import Category, Item, ProbabilityTarget, Setting
 

@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from charts.plotly_chart import bar
-from config.settings import MATERIALS, SKILL_LEVELS
+from config.domain import MATERIALS, SKILL_LEVELS
 from services.statistics import sample_sufficiency
 from ui import configure_page, load_logs, page_guard, show_chart, sufficiency_settings
 

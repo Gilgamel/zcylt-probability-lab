@@ -2,7 +2,12 @@
 
 import streamlit as st
 
-from config.settings import BIRD_RANDOM, HORSE_PROBABILITY_WARNING, HORSE_SEARCH, QUALITY_LABELS
+from config.domain import (
+    BIRD_RANDOM,
+    HORSE_PROBABILITY_WARNING,
+    HORSE_SEARCH,
+    QUALITY_LABELS,
+)
 from database.db import session_scope
 from database.repository import ProbabilityRepository
 from ui import configure_page, get_displayed_probabilities, get_setting, page_guard

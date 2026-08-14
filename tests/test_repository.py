@@ -3,7 +3,7 @@
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
-from config.settings import MATERIAL_PRODUCTION
+from config.domain import MATERIAL_PRODUCTION
 from database.db import Base
 from database.models import Category, Item, Observation, SimulationRun
 from database.repository import ProbabilityRepository

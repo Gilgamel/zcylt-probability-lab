@@ -50,7 +50,7 @@ def session_scope() -> Generator[Session, None, None]:
 
 def _seed_reference_data(session: Session) -> None:
     """Seed categories, items, displayed targets, and configurable defaults."""
-    from config.settings import (
+    from config.domain import (
         CATEGORIES,
         DEFAULTS,
         DISPLAYED_PROBABILITIES,
@@ -96,7 +96,7 @@ def _seed_reference_data(session: Session) -> None:
 
 def _migrate_legacy_material_logs(session: Session) -> None:
     """Copy legacy material rows into Observation once without deleting raw tables."""
-    from config.settings import MATERIAL_PRODUCTION
+    from config.domain import MATERIAL_PRODUCTION
     from database.models import Category, Item, Observation, Setting
 
     marker = session.get(Setting, "legacy_material_migration_v1")

@@ -8,7 +8,7 @@ import pandas as pd
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from config.settings import MATERIAL_PRODUCTION
+from config.domain import MATERIAL_PRODUCTION
 from database.models import (
     Category,
     Item,

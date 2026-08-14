@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from config.settings import (
+from config.domain import (
     BIRD_RANDOM,
     BIRD_SPECIES,
     CATEGORIES,
