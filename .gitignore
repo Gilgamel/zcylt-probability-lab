@@ -1,9 +1,16 @@
 __pycache__/
 *.py[cod]
+.DS_Store
 .pytest_cache/
 .venv/
-data/*.db
+data/
 logs/*.log*
 imports/*.csv
 exports/*.csv
 .streamlit/secrets.toml
+.firecrawl/
+.env
+.env.*
+!.env.example
+*.secret
+secrets.toml

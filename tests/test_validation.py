@@ -4,11 +4,14 @@ import pandas as pd
 import pytest
 from pydantic import ValidationError
 
-from config.domain import BIRD_RANDOM, HORSE_SEARCH
+from config.domain import BIRD_RANDOM, HORSE_SEARCH, MATERIAL_PRODUCTION
 from services.validation import (
     ObservationInput,
     ProductionInput,
+    validate_bird_session,
     validate_csv,
+    validate_horse_session,
+    validate_material_entry,
     validate_observation_csv,
 )
 
@@ -16,6 +19,21 @@ from services.validation import (
 def test_rejects_red_above_total() -> None:
     with pytest.raises(ValidationError):
         ProductionInput(material="玉料", skill_level=9, quantity=18, red_quantity=19)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"level": 8, "attempt_count": 18, "orange_count": 1},
+        {"level": 9, "attempt_count": 0, "orange_count": 0},
+        {"level": 9, "attempt_count": 18, "orange_count": 19},
+    ],
+)
+def test_material_rejects_invalid_skill_quantity_or_orange(payload) -> None:
+    with pytest.raises(ValidationError):
+        ObservationInput(
+            category_type=MATERIAL_PRODUCTION, item="玉料", **payload
+        )
 
 
 def test_csv_is_validated_atomically_with_row_number() -> None:
@@ -48,6 +66,12 @@ def test_bird_records_result_species_and_quality() -> None:
     assert record.item == "铁羽雁"
     assert record.orange_count == 1
 
+    with pytest.raises(ValidationError):
+        ObservationInput(
+            category_type=BIRD_RANDOM, item="不存在的灵禽", level=10,
+            attempt_count=1, orange_count=1,
+        )
+
 
 def test_unified_csv_rejects_entire_file_with_source_row() -> None:
     frame = pd.DataFrame([
@@ -66,3 +90,62 @@ def test_unified_csv_rejects_entire_file_with_source_row() -> None:
     ])
     with pytest.raises(ValueError, match="第 3 行"):
         validate_observation_csv(frame)
+
+
+@pytest.mark.parametrize("orange", [0, 18])
+def test_material_entry_accepts_boundary_orange_counts(orange: int) -> None:
+    record = validate_material_entry(
+        material="丝线", skill_level=9, quantity=18, orange_count=orange
+    )
+    assert (record.attempt_count, record.orange_count) == (18, orange)
+
+
+def test_material_entry_rejects_orange_above_quantity() -> None:
+    with pytest.raises(ValidationError):
+        validate_material_entry(
+            material="丝线", skill_level=9, quantity=18, orange_count=19
+        )
+
+
+@pytest.mark.parametrize("search_count", [1, 8])
+def test_horse_session_accepts_one_to_eight_results(search_count: int) -> None:
+    record = validate_horse_session(
+        horse="浴火烈马", level=10, search_count=search_count,
+        green_count=search_count, blue_count=0, purple_count=0, orange_count=0,
+    )
+    assert record.attempt_count == search_count
+
+
+def test_horse_session_rejects_nine_results() -> None:
+    with pytest.raises(ValidationError):
+        validate_horse_session(
+            horse="浴火烈马", level=10, search_count=9,
+            green_count=9, blue_count=0, purple_count=0, orange_count=0,
+        )
+
+
+def test_bird_session_keeps_eight_individual_results_under_one_session() -> None:
+    results = [
+        ("铁羽雁", "BLUE"), ("九炎鹊", "PURPLE"),
+        ("出云鹤", "ORANGE"), ("暗铁鸦", "BLUE"),
+        ("铁羽雁", "BLUE"), ("九炎鹊", "PURPLE"),
+        ("出云鹤", "BLUE"), ("暗铁鸦", "ORANGE"),
+    ]
+    records = validate_bird_session(level=10, results=results)
+    assert len(records) == 8
+    assert len({record.session_id for record in records}) == 1
+    assert all(record.attempt_count == 1 for record in records)
+    assert [record.item for record in records] == [species for species, _ in results]
+    assert all(
+        record.blue_count + record.purple_count + record.orange_count == 1
+        for record in records
+    )
+
+
+@pytest.mark.parametrize(
+    "results",
+    [[("不存在的灵禽", "BLUE")], [("铁羽雁", "GREEN")]],
+)
+def test_bird_session_rejects_invalid_species_or_quality(results) -> None:
+    with pytest.raises((ValidationError, ValueError)):
+        validate_bird_session(level=10, results=results)

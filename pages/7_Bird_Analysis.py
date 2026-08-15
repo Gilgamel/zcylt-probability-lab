@@ -120,7 +120,7 @@ def render() -> None:
 
     st.subheader("会话分析")
     session_data = data.copy()
-    session_data["session_group"] = session_data["session_key"].fillna(
+    session_data["session_group"] = session_data["session_id"].fillna(
         session_data["id"].map(lambda value: f"legacy-{value}")
     )
     sessions = session_data.groupby("session_group", as_index=False).agg(
@@ -157,7 +157,7 @@ def render() -> None:
             simulated_sessions = simulate_mixed_sessions(
                 displayed_orange,
                 sessions["searches"].to_numpy(),
-                int(get_setting("default_iterations", "100000")),
+                int(get_setting("default_monte_carlo_iterations", "100000")),
                 int(get_setting("default_random_seed", "42")),
             )
         comparison = px.histogram(

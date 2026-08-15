@@ -9,7 +9,7 @@ from config.domain import (
     QUALITY_LABELS,
 )
 from database.db import session_scope
-from database.repository import ProbabilityRepository
+from database.repository import SettingsRepository
 from ui import configure_page, get_displayed_probabilities, get_setting, page_guard
 
 
@@ -18,11 +18,12 @@ def render() -> None:
     st.title("设置")
     with st.form("settings"):
         quantity = st.number_input(
-            "官匠营默认生产数量", 1, value=int(get_setting("default_quantity", "18"))
+            "官匠营默认生产数量", 1,
+            value=int(get_setting("default_material_quantity", "18"))
         )
         iterations = st.number_input(
             "默认模拟次数", 100, 2_000_000,
-            int(get_setting("default_iterations", "100000")), 1000,
+            int(get_setting("default_monte_carlo_iterations", "100000")), 1000,
         )
         random_seed = st.number_input(
             "默认随机种子", 0, 2_147_483_647,
@@ -58,10 +59,10 @@ def render() -> None:
         if not grade_a <= grade_b <= grade_c:
             raise ValueError("样本评级阈值必须满足 A ≤ B ≤ C")
         with session_scope() as session:
-            repository = ProbabilityRepository(session)
+            repository = SettingsRepository(session)
             values = {
-                "default_quantity": quantity,
-                "default_iterations": iterations,
+                "default_material_quantity": quantity,
+                "default_monte_carlo_iterations": iterations,
                 "default_random_seed": random_seed,
                 "theme": theme,
                 "sufficiency_a_moe": grade_a,
@@ -70,7 +71,7 @@ def render() -> None:
                 "target_margin_of_error": target_margin,
             }
             for key, value in values.items():
-                repository.set_setting(key, str(value))
+                repository.set(key, str(value))
         st.success("设置已保存。")
 
     st.divider()

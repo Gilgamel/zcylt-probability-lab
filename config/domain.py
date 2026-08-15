@@ -34,6 +34,11 @@ ITEMS_BY_CATEGORY = {
 }
 
 SKILL_LEVELS = (9, 10, 11, 12)
+SKILL_PROGRESSION_SEEDS = (
+    (9, 10, 200),
+    (10, 11, 800),
+    (11, 12, 1600),
+)
 QUALITIES = ("GREEN", "BLUE", "PURPLE", "ORANGE")
 QUALITY_LABELS = {
     "GREEN": "绿品",
@@ -56,8 +61,11 @@ DISPLAYED_PROBABILITIES = {
 }
 
 DEFAULTS = {
-    "default_quantity": "18",
-    "default_iterations": "100000",
+    "default_material_quantity": "18",
+    "default_horse_level": "10",
+    "default_bird_level": "10",
+    "default_monte_carlo_iterations": "100000",
+    "confidence_level": "0.95",
     "default_random_seed": "42",
     "theme": "dark",
     "sufficiency_a_moe": "0.005",
