@@ -186,7 +186,7 @@ def render() -> None:
             simulated_sessions = simulate_mixed_sessions(
                 displayed_orange,
                 data["attempt_count"].to_numpy(),
-                int(get_setting("default_iterations", "100000")),
+                int(get_setting("default_monte_carlo_iterations", "100000")),
                 int(get_setting("default_random_seed", "42")),
             )
         comparison = go.Figure()

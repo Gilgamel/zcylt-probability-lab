@@ -1,6 +1,8 @@
 """Category-aware observation and atomic CSV validation."""
 
 from datetime import datetime as DateTime
+from typing import Iterable
+from uuid import UUID, uuid4
 
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -30,7 +32,7 @@ class ObservationInput(BaseModel):
     purple_count: int = Field(default=0, ge=0)
     orange_count: int = Field(default=0, ge=0)
     unaccounted_count: int = Field(default=0, ge=0)
-    session_key: str | None = None
+    session_id: UUID = Field(default_factory=uuid4)
     observed_at: DateTime = Field(default_factory=DateTime.now)
     remark: str = ""
 
@@ -60,9 +62,110 @@ class ObservationInput(BaseModel):
         )
         if quality_total > self.attempt_count:
             raise ValueError("品质数量合计不能大于尝试次数")
-        if self.category_type in {HORSE_SEARCH, BIRD_RANDOM} and quality_total != self.attempt_count:
+        if self.category_type == HORSE_SEARCH and quality_total != self.attempt_count:
             raise ValueError("搜索品质数量与搜索次数必须相等；未知结果请计入其他/未说明")
+        if self.category_type == BIRD_RANDOM:
+            if self.attempt_count != 1:
+                raise ValueError("每条灵禽院原始观测必须且只能代表 1 次搜索")
+            if self.green_count or self.unaccounted_count:
+                raise ValueError("灵禽院结果只允许蓝、紫、橙三种品质")
+            if self.blue_count + self.purple_count + self.orange_count != 1:
+                raise ValueError("每条灵禽院原始观测必须包含且只包含 1 个品质结果")
         return self
+
+
+BIRD_QUALITIES = ("BLUE", "PURPLE", "ORANGE")
+
+
+def _optional_observed_at(observed_at: DateTime | None) -> dict[str, DateTime]:
+    """Only override the model's automatic timestamp when a caller supplies one."""
+    return {} if observed_at is None else {"observed_at": observed_at}
+
+
+def validate_material_entry(
+    *,
+    material: str,
+    skill_level: int,
+    quantity: int,
+    orange_count: int,
+    remark: str = "",
+    session_id: UUID | None = None,
+    observed_at: DateTime | None = None,
+) -> ObservationInput:
+    """Validate and normalize one 官匠营 production batch."""
+    return ObservationInput(
+        category_type=MATERIAL_PRODUCTION,
+        item=material,
+        level=skill_level,
+        attempt_count=quantity,
+        orange_count=orange_count,
+        remark=remark,
+        session_id=session_id or uuid4(),
+        **_optional_observed_at(observed_at),
+    )
+
+
+def validate_horse_session(
+    *,
+    horse: str,
+    level: int,
+    search_count: int,
+    green_count: int,
+    blue_count: int,
+    purple_count: int,
+    orange_count: int,
+    unaccounted_count: int = 0,
+    remark: str = "",
+    session_id: UUID | None = None,
+    observed_at: DateTime | None = None,
+) -> ObservationInput:
+    """Validate and normalize an aggregate 马厩 search session."""
+    return ObservationInput(
+        category_type=HORSE_SEARCH,
+        item=horse,
+        level=level,
+        attempt_count=search_count,
+        green_count=green_count,
+        blue_count=blue_count,
+        purple_count=purple_count,
+        orange_count=orange_count,
+        unaccounted_count=unaccounted_count,
+        remark=remark,
+        session_id=session_id or uuid4(),
+        **_optional_observed_at(observed_at),
+    )
+
+
+def validate_bird_session(
+    *,
+    level: int,
+    results: Iterable[tuple[str, str]],
+    remark: str = "",
+    session_id: UUID | None = None,
+    observed_at: DateTime | None = None,
+) -> list[ObservationInput]:
+    """Validate 1–8 灵禽院 results and preserve each as one raw observation."""
+    normalized_results = list(results)
+    if not 1 <= len(normalized_results) <= 8:
+        raise ValueError("灵禽院每个搜索会话必须包含 1 到 8 次结果")
+    shared_session_id = session_id or uuid4()
+    records: list[ObservationInput] = []
+    for species, quality in normalized_results:
+        if quality not in BIRD_QUALITIES:
+            raise ValueError("灵禽院品质必须是蓝、紫或橙")
+        records.append(ObservationInput(
+            category_type=BIRD_RANDOM,
+            item=species,
+            level=level,
+            attempt_count=1,
+            blue_count=int(quality == "BLUE"),
+            purple_count=int(quality == "PURPLE"),
+            orange_count=int(quality == "ORANGE"),
+            remark=remark,
+            session_id=shared_session_id,
+            **_optional_observed_at(observed_at),
+        ))
+    return records
 
 
 class ProductionInput(BaseModel):
@@ -94,7 +197,7 @@ CSV_COLUMNS = (
     "observed_at", "category_type", "item", "level", "attempt_count",
     "green_count", "blue_count", "purple_count", "orange_count",
     "unaccounted_count", "remark",
-    "session_key",
+    "session_id",
 )
 
 
@@ -113,10 +216,10 @@ def validate_observation_csv(frame: pd.DataFrame) -> list[ObservationInput]:
                 payload[column] = 0 if pd.isna(payload[column]) else payload[column]
             raw_remark = row.get("remark", "")
             payload["remark"] = "" if pd.isna(raw_remark) else raw_remark
-            raw_session_key = row.get("session_key", None)
-            payload["session_key"] = (
-                None if raw_session_key is None or pd.isna(raw_session_key)
-                else str(raw_session_key)
+            raw_session_id = row.get("session_id", None)
+            payload["session_id"] = (
+                uuid4() if raw_session_id is None or pd.isna(raw_session_id)
+                else str(raw_session_id)
             )
             records.append(ObservationInput.model_validate(payload))
         except Exception as exc:

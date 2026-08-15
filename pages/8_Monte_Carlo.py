@@ -16,7 +16,7 @@ from config.domain import (
     MATERIALS,
 )
 from database.db import session_scope
-from database.repository import ProbabilityRepository
+from database.repository import SimulationRepository
 from services.estimator import fit_binary_probability
 from services.simulator import (
     CategoricalSimulator,
@@ -46,7 +46,7 @@ def _real_session_orange(
         return np.array([], dtype=int)
     if category_type == BIRD_RANDOM:
         grouped = data.copy()
-        grouped["session_group"] = grouped["session_key"].fillna(
+        grouped["session_group"] = grouped["session_id"].fillna(
             grouped["id"].map(lambda value: f"legacy-{value}")
         )
         sessions = grouped.groupby("session_group", as_index=False).agg(
@@ -121,7 +121,7 @@ def _persist_run(
         "max": int(simulated.max()),
     }
     with session_scope() as session:
-        ProbabilityRepository(session).save_simulation_run(
+        SimulationRepository(session).add(
             category_type, model_name, probability, searches, iterations, seed, result, item
         )
 
@@ -134,14 +134,14 @@ def _simulation_tab() -> None:
         format_func=lambda value: CATEGORIES[value],
         key="simulation-category",
     )
-    default_iterations = int(get_setting("default_iterations", "100000"))
+    default_iterations = int(get_setting("default_monte_carlo_iterations", "100000"))
     default_seed = int(get_setting("default_random_seed", "42"))
     c1, c2, c3 = st.columns(3)
     searches = int(c1.number_input(
         "每会话尝试次数",
         min_value=1,
         max_value=8 if category_type in {HORSE_SEARCH, BIRD_RANDOM} else 10000,
-        value=1 if category_type in {HORSE_SEARCH, BIRD_RANDOM} else int(get_setting("default_quantity", "18")),
+        value=1 if category_type in {HORSE_SEARCH, BIRD_RANDOM} else int(get_setting("default_material_quantity", "18")),
     ))
     iterations = int(c2.number_input("模拟迭代次数", 100, 2_000_000, default_iterations, 1000))
     seed = int(c3.number_input("固定随机种子", 0, 2_147_483_647, default_seed, 1))
