@@ -418,18 +418,18 @@ class AnalysisRepository:
                 quality_total == Observation.attempt_count,
             ),
             BIRD_RANDOM: and_(
-                Observation.attempt_count == 1,
+                Observation.attempt_count <= 8,
                 Observation.green_count == 0,
                 Observation.unaccounted_count == 0,
                 Observation.blue_count + Observation.purple_count
-                + Observation.orange_count == 1,
+                + Observation.orange_count == Observation.attempt_count,
             ),
             BIRD_TARGETED: and_(
-                Observation.attempt_count == 1,
+                Observation.attempt_count <= 8,
                 Observation.green_count == 0,
                 Observation.unaccounted_count == 0,
                 Observation.blue_count + Observation.purple_count
-                + Observation.orange_count == 1,
+                + Observation.orange_count == Observation.attempt_count,
             ),
         }
         if category_type is not None:

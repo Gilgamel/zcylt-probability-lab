@@ -8,13 +8,14 @@ when an older ``config.settings`` module is still present in ``sys.modules``.
 MATERIAL_PRODUCTION = "MATERIAL_PRODUCTION"
 HORSE_SEARCH = "HORSE_SEARCH"
 BIRD_RANDOM = "BIRD_RANDOM"
+# Retained only so historical targeted-cultivation rows remain readable/editable.
+# New data entry supports random cultivation exclusively.
 BIRD_TARGETED = "BIRD_TARGETED"
 
 CATEGORIES = {
     MATERIAL_PRODUCTION: "官匠营",
     HORSE_SEARCH: "马厩",
     BIRD_RANDOM: "灵禽院",
-    BIRD_TARGETED: "灵禽院（特定品种培养）",
 }
 MATERIALS = (
     "玉料",

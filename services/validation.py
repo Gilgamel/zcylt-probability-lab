@@ -1,7 +1,7 @@
 """Category-aware observation and atomic CSV validation."""
 
 from datetime import datetime as DateTime
-from typing import Iterable
+from collections.abc import Iterable, Mapping
 from uuid import UUID, uuid4
 
 import pandas as pd
@@ -67,12 +67,10 @@ class ObservationInput(BaseModel):
         if self.category_type == HORSE_SEARCH and quality_total != self.attempt_count:
             raise ValueError("搜索品质数量与搜索次数必须相等；未知结果请计入其他/未说明")
         if self.category_type in {BIRD_RANDOM, BIRD_TARGETED}:
-            if self.attempt_count != 1:
-                raise ValueError("每条灵禽院原始观测必须且只能代表 1 次搜索")
             if self.green_count or self.unaccounted_count:
                 raise ValueError("灵禽院结果只允许蓝、紫、橙三种品质")
-            if self.blue_count + self.purple_count + self.orange_count != 1:
-                raise ValueError("每条灵禽院原始观测必须包含且只包含 1 个品质结果")
+            if self.blue_count + self.purple_count + self.orange_count != self.attempt_count:
+                raise ValueError("灵禽院品质数量合计必须等于该品种的培养次数")
         return self
 
 
@@ -145,32 +143,83 @@ def validate_bird_session(
     remark: str = "",
     session_id: UUID | None = None,
     observed_at: DateTime | None = None,
-    category_type: str = BIRD_RANDOM,
 ) -> list[ObservationInput]:
-    """Validate 1–8 灵禽院 results and preserve each as one raw observation."""
+    """Validate 1–8 results and aggregate them into one row per species."""
     normalized_results = list(results)
     if not 1 <= len(normalized_results) <= 8:
         raise ValueError("灵禽院每个搜索会话必须包含 1 到 8 次结果")
-    if category_type not in {BIRD_RANDOM, BIRD_TARGETED}:
-        raise ValueError("未知的灵禽院培养方式")
-    shared_session_id = session_id or uuid4()
-    records: list[ObservationInput] = []
+    counts = {
+        species: {quality: 0 for quality in BIRD_QUALITIES}
+        for species in BIRD_SPECIES
+    }
     for species, quality in normalized_results:
+        if species not in BIRD_SPECIES:
+            raise ValueError("未知的灵禽品种")
         if quality not in BIRD_QUALITIES:
             raise ValueError("灵禽院品质必须是蓝、紫或橙")
-        records.append(ObservationInput(
-            category_type=category_type,
+        counts[species][quality] += 1
+    return validate_bird_counts(
+        level=level,
+        counts=counts,
+        remark=remark,
+        session_id=session_id,
+        observed_at=observed_at,
+    )
+
+
+def validate_bird_counts(
+    *,
+    level: int,
+    counts: Mapping[str, Mapping[str, int]],
+    remark: str = "",
+    session_id: UUID | None = None,
+    observed_at: DateTime | None = None,
+) -> list[ObservationInput]:
+    """Validate a species-by-quality count matrix for random cultivation."""
+    unknown_species = set(counts) - set(BIRD_SPECIES)
+    if unknown_species:
+        raise ValueError("未知的灵禽品种")
+    unknown_qualities = {
+        quality
+        for species_counts in counts.values()
+        for quality in species_counts
+        if quality not in BIRD_QUALITIES
+    }
+    if unknown_qualities:
+        raise ValueError("灵禽院品质必须是蓝、紫或橙")
+
+    normalized: list[tuple[str, int, int, int]] = []
+    total_attempts = 0
+    for species in BIRD_SPECIES:
+        species_counts = counts.get(species, {})
+        blue = int(species_counts.get("BLUE", 0))
+        purple = int(species_counts.get("PURPLE", 0))
+        orange = int(species_counts.get("ORANGE", 0))
+        if min(blue, purple, orange) < 0:
+            raise ValueError("灵禽院品质数量不能为负数")
+        attempts = blue + purple + orange
+        total_attempts += attempts
+        if attempts:
+            normalized.append((species, blue, purple, orange))
+    if not 1 <= total_attempts <= 8:
+        raise ValueError("灵禽院每个培养会话的数量合计必须是 1 到 8")
+
+    shared_session_id = session_id or uuid4()
+    return [
+        ObservationInput(
+            category_type=BIRD_RANDOM,
             item=species,
             level=level,
-            attempt_count=1,
-            blue_count=int(quality == "BLUE"),
-            purple_count=int(quality == "PURPLE"),
-            orange_count=int(quality == "ORANGE"),
+            attempt_count=blue + purple + orange,
+            blue_count=blue,
+            purple_count=purple,
+            orange_count=orange,
             remark=remark,
             session_id=shared_session_id,
             **_optional_observed_at(observed_at),
-        ))
-    return records
+        )
+        for species, blue, purple, orange in normalized
+    ]
 
 
 class ProductionInput(BaseModel):

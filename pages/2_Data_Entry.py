@@ -5,21 +5,19 @@ import streamlit as st
 from config.domain import (
     BIRD_RANDOM,
     BIRD_SPECIES,
-    BIRD_TARGETED,
     CATEGORIES,
     HORSE_BREEDS,
     HORSE_PROBABILITY_WARNING,
     HORSE_SEARCH,
     MATERIAL_PRODUCTION,
     MATERIALS,
-    QUALITY_LABELS,
     SKILL_LEVELS,
 )
 from database.db import session_scope
 from database.repository import ObservationRepository
 from services.validation import (
     ObservationInput,
-    validate_bird_session,
+    validate_bird_counts,
     validate_horse_session,
     validate_material_entry,
 )
@@ -134,72 +132,57 @@ def _horse_entry() -> None:
 
 
 def _bird_entry() -> None:
-    """Render random or targeted cultivation while preserving mode semantics."""
-    cultivation_mode = st.radio(
-        "培养方式",
-        (BIRD_RANDOM, BIRD_TARGETED),
-        format_func=lambda value: "培养（随机品种）" if value == BIRD_RANDOM else "培养特定品种",
-        horizontal=True,
-    )
-    target_species = None
-    if cultivation_mode == BIRD_RANDOM:
-        st.caption("普通培养：每次录入实际出现的灵禽品种和品质。")
-    else:
-        target_species = st.selectbox("选择培养品种", BIRD_SPECIES)
-        st.caption("特定品种培养：品种在培养前确定，每次只需记录实际品质。")
-    search_count = st.number_input(
-        "本次记录搜索次数", min_value=1, max_value=8, value=8, step=1, key="bird-count"
+    """Render compact random-cultivation counts by species and quality."""
+    st.caption(
+        "灵禽院仅记录随机培养。请填写各品种对应的蓝、紫、橙数量；"
+        "数量合计须为 1–8，无需逐次选择结果。"
     )
     with st.form("bird-entry", clear_on_submit=True):
         level = st.number_input(
-            "等级", min_value=1, value=int(get_setting("default_bird_level", "10")),
+            "等级（默认 10）", min_value=1, value=int(get_setting("default_bird_level", "10")),
             step=1, key="bird-level"
         )
-        results: list[tuple[str, str]] = []
-        quality_options = ("BLUE", "PURPLE", "ORANGE")
-        for index in range(int(search_count)):
-            species_col, quality_col = st.columns(2)
-            if cultivation_mode == BIRD_RANDOM:
-                species = species_col.selectbox(
-                    f"培养 {index + 1} · 品种结果",
-                    BIRD_SPECIES,
-                    index=None,
-                    placeholder="选择本次实际结果",
-                    key=f"bird-species-{index}",
-                )
-            else:
-                species = target_species
-                species_col.text_input(
-                    f"培养 {index + 1} · 指定品种",
-                    value=target_species,
-                    disabled=True,
-                    key=f"bird-target-species-{index}",
-                )
-            quality = quality_col.selectbox(
-                f"培养 {index + 1} · 品质结果",
-                quality_options,
-                index=None,
-                placeholder="选择本次实际品质",
-                format_func=lambda value: QUALITY_LABELS[value],
-                key=f"bird-quality-{index}",
-            )
-            results.append((species or "", quality or ""))
+        headers = st.columns((2, 1, 1, 1, 1))
+        for column, label in zip(headers, ("品种", "蓝品", "紫品", "橙品", "合计")):
+            column.markdown(f"**{label}**")
+        counts: dict[str, dict[str, int]] = {}
+        total_attempts = 0
+        for species in BIRD_SPECIES:
+            columns = st.columns((2, 1, 1, 1, 1))
+            columns[0].write(species)
+            blue = int(columns[1].number_input(
+                f"{species}蓝品", 0, 8, 0, 1,
+                key=f"bird-{species}-blue", label_visibility="collapsed",
+            ))
+            purple = int(columns[2].number_input(
+                f"{species}紫品", 0, 8, 0, 1,
+                key=f"bird-{species}-purple", label_visibility="collapsed",
+            ))
+            orange = int(columns[3].number_input(
+                f"{species}橙品", 0, 8, 0, 1,
+                key=f"bird-{species}-orange", label_visibility="collapsed",
+            ))
+            species_total = blue + purple + orange
+            columns[4].write(species_total)
+            total_attempts += species_total
+            counts[species] = {"BLUE": blue, "PURPLE": purple, "ORANGE": orange}
+        st.caption(f"当前数量合计：{total_attempts} / 8")
         remark = st.text_area("备注", max_chars=500, key="bird-remark")
         submitted = st.form_submit_button("保存灵禽结果", type="primary", width="stretch")
     if submitted:
         try:
-            records = validate_bird_session(
+            records = validate_bird_counts(
                 level=level,
-                results=results,
+                counts=counts,
                 remark=remark,
-                category_type=cultivation_mode,
             )
         except ValueError as exc:
             st.error(f"无法保存：{exc}")
         else:
             _save_many(records)
             st.success(
-                f"已保存 {len(records)} 次灵禽培养结果。"
+                f"已保存 {sum(record.attempt_count for record in records)} 次随机培养结果，"
+                f"汇总为 {len(records)} 条品种记录。"
                 f"会话：{str(records[0].session_id)[:8]}"
             )
 

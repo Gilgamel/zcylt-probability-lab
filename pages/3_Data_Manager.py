@@ -11,7 +11,6 @@ from config.domain import (
     CATEGORIES,
     ITEMS_BY_CATEGORY,
     MATERIAL_PRODUCTION,
-    QUALITY_LABELS,
 )
 from database.db import session_scope
 from database.repository import ObservationRepository
@@ -140,20 +139,21 @@ def _edit_fields(row: pd.Series) -> dict[str, object]:
             "红色数量", min_value=0, value=int(row["orange_count"])
         )
     elif category_type in {BIRD_RANDOM, BIRD_TARGETED}:
-        values["attempt_count"] = 1
-        qualities = ("BLUE", "PURPLE", "ORANGE")
-        current = next(
-            (quality for quality in qualities if int(row[f"{quality.lower()}_count"]) == 1),
-            "BLUE",
-        )
-        quality = st.selectbox(
-            "品质结果", qualities, index=qualities.index(current),
-            format_func=lambda value: QUALITY_LABELS[value],
-        )
+        quality_columns = st.columns(3)
+        blue = int(quality_columns[0].number_input(
+            "蓝品", min_value=0, max_value=8, value=int(row["blue_count"])
+        ))
+        purple = int(quality_columns[1].number_input(
+            "紫品", min_value=0, max_value=8, value=int(row["purple_count"])
+        ))
+        orange = int(quality_columns[2].number_input(
+            "橙品", min_value=0, max_value=8, value=int(row["orange_count"])
+        ))
         values.update({
-            "blue_count": int(quality == "BLUE"),
-            "purple_count": int(quality == "PURPLE"),
-            "orange_count": int(quality == "ORANGE"),
+            "attempt_count": blue + purple + orange,
+            "blue_count": blue,
+            "purple_count": purple,
+            "orange_count": orange,
         })
     else:
         values["attempt_count"] = st.number_input(
