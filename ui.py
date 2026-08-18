@@ -27,8 +27,8 @@ from services.statistics import SufficiencyThresholds
 logger.add(LOG_DIR / "probability_lab.log", rotation="5 MB", retention="14 days")
 
 
-def configure_page(title: str, icon: str = "🎲") -> None:
-    st.set_page_config(page_title=f"{title} · ProbabilityLab", page_icon=icon, layout="wide")
+def configure_page(title: str) -> None:
+    st.set_page_config(page_title=f"{title} · ProbabilityLab", layout="wide")
     st.markdown(
         """
         <style>

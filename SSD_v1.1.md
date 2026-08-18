@@ -66,7 +66,6 @@ ProbabilityLab/
 │   └── plotly_chart.py
 │
 ├── pages/
-│   ├── 1_Dashboard.py
 │   ├── 2_Data_Entry.py
 │   ├── 3_Data_Manager.py
 │   ├── 4_Material_Analysis.py
@@ -187,6 +186,11 @@ Features
 -   Delete
 -   CSV Import
 -   CSV Export
+
+Deletion requires both explicit irreversible-action confirmation and a password
+that matches `DELETE_PASSWORD` from Streamlit Secrets. The password must never
+be stored in source code, application data, or logs. Deletion remains disabled
+when that secret is not configured.
 
 ------------------------------------------------------------------------
 

@@ -69,10 +69,19 @@ def _save_many(records: list[ObservationInput]) -> None:
 def _material_entry() -> None:
     """Render repeated-batch material entry."""
     default_quantity = int(get_setting("default_material_quantity", "18"))
+    default_level = int(get_setting("default_material_level", "12"))
     with st.form("material-entry", clear_on_submit=True):
         left, right = st.columns(2)
         material = left.selectbox("材料", MATERIALS)
-        skill = right.selectbox("技能等级", SKILL_LEVELS)
+        skill = right.selectbox(
+            "技能等级",
+            SKILL_LEVELS,
+            index=(
+                SKILL_LEVELS.index(default_level)
+                if default_level in SKILL_LEVELS
+                else SKILL_LEVELS.index(12)
+            ),
+        )
         quantity = left.number_input("生产数量", min_value=1, value=default_quantity, step=1)
         red_count = right.number_input("红色数量", min_value=0, value=0, step=1)
         remark = st.text_area("备注", max_chars=500, key="material-remark")
@@ -247,5 +256,5 @@ def render() -> None:
     _saved_status()
 
 
-configure_page("数据录入", "✍️")
+configure_page("数据录入")
 page_guard(render)

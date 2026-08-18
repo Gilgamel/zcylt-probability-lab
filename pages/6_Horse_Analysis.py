@@ -93,5 +93,5 @@ def render() -> None:
     st.caption(f"若每次独立且 p=1%，8 次搜索的精确二项概率：0 橙 {exact.zero:.3%}，恰好 1 橙 {exact.exactly_one:.3%}，≥1 橙 {exact.at_least_one:.3%}，≥2 橙 {exact.at_least_two:.3%}。此处未使用 Monte Carlo。")
 
 
-configure_page("马厩分析", "🐎")
+configure_page("马厩分析")
 page_guard(render)

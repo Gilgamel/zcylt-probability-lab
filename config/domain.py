@@ -65,6 +65,7 @@ DISPLAYED_PROBABILITIES = {
 
 DEFAULTS = {
     "default_material_quantity": "18",
+    "default_material_level": "12",
     "default_horse_level": "10",
     "default_bird_level": "10",
     "default_monte_carlo_iterations": "100000",

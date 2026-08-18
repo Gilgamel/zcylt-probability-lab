@@ -50,6 +50,9 @@ cp .env.example .env
 
 `.env`、`secrets.toml` 和同类秘密文件均已加入 `.gitignore`。
 
+如需启用数据管理页的删除功能，请在 Streamlit Cloud Secrets 中另行配置
+`DELETE_PASSWORD`。该值不会写入源码或数据库；未配置时删除按钮保持禁用。
+
 ## Streamlit Community Cloud 部署
 
 1. 把代码推送到 GitHub，确认仓库中没有任何真实数据库凭据。
@@ -83,7 +86,7 @@ DATABASE_URL = "postgresql+psycopg://USER:PASSWORD@HOST/DATABASE?sslmode=require
 - 马厩：4 种马匹及原始显示概率 `41% / 50% / 7% / 1%`；
 - 灵禽院：4 种灵禽及显示品质概率 `79% / 20% / 1%`；
 - 技能进阶参考：`9→10 = 200`、`10→11 = 800`、`11→12 = 1600`；
-- 默认材料数量 18、马厩等级 10、灵禽等级 10、模拟次数 100,000、置信水平 0.95。
+- 默认材料数量 18、官匠营等级 12、马厩等级 10、灵禽等级 10、模拟次数 100,000、置信水平 0.95。
 
 马厩原始显示值合计 99%，绝不静默归一化。模拟页提供：
 
@@ -94,6 +97,9 @@ DATABASE_URL = "postgresql+psycopg://USER:PASSWORD@HOST/DATABASE?sslmode=require
 
 数据管理页可以导出当前筛选或全部原始观测。CSV 使用 UTF-8 BOM，
 并保持稳定列顺序，便于 Excel 直接打开。
+
+数据管理表第一列显示数据库自动生成的记录 ID；编辑/删除选择器同时显示
+日期、分类、项目、等级、数量和备注摘要，便于在操作前核对目标记录。
 
 ## 测试
 
