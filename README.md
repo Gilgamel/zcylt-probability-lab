@@ -42,6 +42,9 @@ export DATABASE_URL='postgresql+psycopg://USER:PASSWORD@HOST/DATABASE?sslmode=re
 streamlit run app.py
 ```
 
+`app.py` 保持为部署入口；应用使用显式 Streamlit 导航，并将默认页面显示为
+`Dashboard`，避免入口文件名出现在侧边栏。
+
 如使用本地 `.env`，复制模板后由你信任的环境加载器读取：
 
 ```bash
