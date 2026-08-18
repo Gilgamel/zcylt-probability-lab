@@ -7,6 +7,8 @@ import streamlit as st
 
 from charts.plotly_chart import bar, line
 from config.domain import BIRD_RANDOM, HORSE_SEARCH, MATERIAL_PRODUCTION
+from services.analysis import dashboard_daily_metrics
+from services.statistics import calculate_proportion, classify_sample_quality
 from ui import (
     get_displayed_probabilities,
     load_dashboard_data,
@@ -17,20 +19,36 @@ from ui import (
 
 def _category_card(
     title: str,
+    records: int,
     attempts: int,
     orange: int,
     attempt_label: str,
+    items_with_data: int | None = None,
     displayed: float | None = None,
 ) -> None:
     """Render compact totals for one category."""
-    rate = orange / attempts if attempts else 0.0
+    result = calculate_proportion(orange, attempts)
     st.subheader(title)
-    columns = st.columns(4 if displayed is not None else 3)
-    columns[0].metric(attempt_label, attempts)
-    columns[1].metric("红/橙数量", orange)
-    columns[2].metric("观测概率", f"{rate:.2%}")
+    metric_count = 4 + int(items_with_data is not None) + int(displayed is not None)
+    columns = st.columns(metric_count)
+    empty_value: int | str = "No Data" if records == 0 else records
+    columns[0].metric("观测记录", empty_value)
+    offset = 1
+    if items_with_data is not None:
+        columns[offset].metric("有数据材料", "No Data" if records == 0 else items_with_data)
+        offset += 1
+    columns[offset].metric(attempt_label, "No Data" if records == 0 else attempts)
+    columns[offset + 1].metric("红/橙数量", "No Data" if records == 0 else orange)
+    columns[offset + 2].metric(
+        "观测概率",
+        "No Data" if result.observed_rate is None else f"{result.observed_rate:.2%}",
+        help=(
+            "尚未测量" if result.ci_low is None
+            else f"95% Wilson CI {result.ci_low:.2%}–{result.ci_high:.2%} · {classify_sample_quality(result)}"
+        ),
+    )
     if displayed is not None:
-        columns[3].metric("显示概率", f"{displayed:.2%}")
+        columns[offset + 3].metric("显示概率", f"{displayed:.2%}")
 
 
 def render_dashboard() -> None:
@@ -44,22 +62,22 @@ def render_dashboard() -> None:
         return
     category_totals = totals.set_index("category_type")
 
-    def values(category_type: str) -> tuple[int, int]:
+    def values(category_type: str) -> tuple[int, int, int, int]:
         if category_type not in category_totals.index:
-            return 0, 0
+            return 0, 0, 0, 0
         row = category_totals.loc[category_type]
-        return int(row["attempts"]), int(row["orange"])
+        return int(row["records"]), int(row["items_with_data"]), int(row["attempts"]), int(row["orange"])
 
-    material_attempts, material_orange = values(MATERIAL_PRODUCTION)
-    horse_attempts, horse_orange = values(HORSE_SEARCH)
-    bird_attempts, bird_orange = values(BIRD_RANDOM)
-    _category_card("官匠营", material_attempts, material_orange, "总生产量")
+    material_records, material_items, material_attempts, material_orange = values(MATERIAL_PRODUCTION)
+    horse_records, _, horse_attempts, horse_orange = values(HORSE_SEARCH)
+    bird_records, _, bird_attempts, bird_orange = values(BIRD_RANDOM)
+    _category_card("官匠营", material_records, material_attempts, material_orange, "总生产量", material_items)
     st.divider()
     horse_displayed = get_displayed_probabilities(HORSE_SEARCH).get("ORANGE")
     bird_displayed = get_displayed_probabilities(BIRD_RANDOM).get("ORANGE")
-    _category_card("马厩", horse_attempts, horse_orange, "总搜索数", horse_displayed)
+    _category_card("马厩", horse_records, horse_attempts, horse_orange, "总搜索数", displayed=horse_displayed)
     st.divider()
-    _category_card("灵禽院", bird_attempts, bird_orange, "总搜索数", bird_displayed)
+    _category_card("灵禽院", bird_records, bird_attempts, bird_orange, "总搜索数", displayed=bird_displayed)
 
     now = datetime.now()
     recent_columns = st.columns(3)
@@ -80,8 +98,7 @@ def render_dashboard() -> None:
     recent_columns[1].metric("近 7 天尝试", week_count)
     recent_columns[2].metric("近 30 天尝试", month_count)
 
-    daily["observed_probability"] = daily["orange_count"] / daily["attempt_count"]
-    daily["sample_growth"] = daily.groupby("category")["attempt_count"].cumsum()
+    daily = dashboard_daily_metrics(daily)
     left, right = st.columns(2)
     with left:
         show_chart(bar(daily, "date", "attempt_count", "每日采集量", "category"), "daily")

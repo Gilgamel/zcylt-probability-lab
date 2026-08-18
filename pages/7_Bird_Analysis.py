@@ -1,174 +1,111 @@
-"""Bird quality, species, and quality-by-species analysis."""
+"""Bird quality and species analysis using SQL-level aggregation."""
 
-import numpy as np
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 
-from config.domain import BIRD_RANDOM, BIRD_SPECIES, QUALITY_LABELS
+from charts.statistical_charts import observed_vs_target_chart, quality_distribution_chart, rate_with_ci_chart
+from config.domain import BIRD_RANDOM, BIRD_SPECIES
+from services.analysis import comparison_table, proportion_table, quality_distribution, session_summary, species_distribution
 from services.statistics import (
-    binomial_test,
-    chi_square_goodness_of_fit,
-    sample_sufficiency,
-    session_probability_at_least_one,
+    apply_holm_correction, calculate_binomial_test, calculate_chi_square_gof,
+    calculate_probability_difference, calculate_proportion, calculate_session_probability, calculate_two_proportion_test,
+    classify_sample_quality, interpret_p_value,
 )
-from services.simulator import simulate_mixed_sessions
-from ui import (
-    configure_page,
-    get_displayed_probabilities,
-    get_setting,
-    load_observations,
-    page_guard,
-    show_chart,
-    sufficiency_settings,
-)
+from ui import configure_page, get_displayed_probabilities, load_quality_analysis, page_guard, show_chart
+
+
+def _pairwise_species(frame: pd.DataFrame):
+    measured = frame[frame["attempts"] > 0].to_dict("records")
+    comparisons = []
+    for index, first in enumerate(measured):
+        for second in measured[index + 1:]:
+            comparisons.append(calculate_two_proportion_test(
+                int(first["orange"]), int(first["attempts"]), int(second["orange"]), int(second["attempts"]),
+                label_a=str(first["item"]), label_b=str(second["item"]),
+            ))
+    return apply_holm_correction(comparisons)
 
 
 def render() -> None:
-    """Render all required bird analyses."""
-    st.title("灵禽院分析")
-    st.caption("种类是搜索结果；25% 仅可作为用户选择的检验假设，不是官方概率。")
-    frame = load_observations(BIRD_RANDOM)
-    if frame.empty:
-        st.info("暂无灵禽院数据。")
+    st.title("灵禽院统计分析")
+    st.caption("种类是搜索结果；四种各 25% 仅作为清楚标注的非官方检验假设。")
+    level_choice = st.selectbox("等级", (10, "全部等级"))
+    level = None if level_choice == "全部等级" else int(level_choice)
+    summary, raw_species, sessions = load_quality_analysis(BIRD_RANDOM, None, level)
+    targets = get_displayed_probabilities(BIRD_RANDOM)
+    total = int(summary.iloc[0]["attempts"]) if not summary.empty else 0
+    orange = int(summary.iloc[0]["orange"]) if not summary.empty else 0
+    result = calculate_proportion(orange, total)
+    cols = st.columns(5)
+    cols[0].metric("总搜索数", total)
+    cols[1].metric("橙品数", orange)
+    cols[2].metric("观测橙品率", "No Data" if result.observed_rate is None else f"{result.observed_rate:.3%}")
+    cols[3].metric("95% Wilson CI", "No Data" if result.ci_low is None else f"{result.ci_low:.3%}–{result.ci_high:.3%}")
+    cols[4].metric("样本质量", classify_sample_quality(result))
+    if not total:
+        st.info("当前筛选条件下暂无有效灵禽院数据。No Data 不等于 0%。")
         return
-    levels = sorted(frame["level"].unique().tolist())
-    selected_level = st.selectbox("等级", ("全部等级", *levels))
-    data = frame if selected_level == "全部等级" else frame[frame["level"] == selected_level]
-    displayed = get_displayed_probabilities(BIRD_RANDOM)
-    total = int(data["attempt_count"].sum())
-    orange = int(data["orange_count"].sum())
-    displayed_orange = displayed["ORANGE"]
-    thresholds, target_margin = sufficiency_settings()
-    info = sample_sufficiency(
-        orange, total, thresholds, target_margin, planning_probability=displayed_orange
-    )
-    p_value = binomial_test(orange, total, displayed_orange)
-    columns = st.columns(6)
-    for column, (label, value) in zip(columns, (
-        ("总搜索数", total), ("橙品数", orange), ("观测概率", f"{info.rate:.3%}"),
-        ("显示概率", f"{displayed_orange:.2%}"),
-        ("差异", f"{(info.rate - displayed_orange) * 100:+.3f} pp"),
-        ("精确二项 p", f"{p_value:.4g}"),
-    )):
-        column.metric(label, value)
-    st.caption(
-        f"95% CI：{info.ci_low:.3%} – {info.ci_high:.3%} · "
-        f"绝对宽度 {info.absolute_ci_width:.3%} · 误差 ±{info.margin_of_error:.3%} · "
-        f"{info.grade} {info.label} · 还需约 {info.additional_samples:,} 次搜索"
-    )
+    orange_test = calculate_binomial_test(orange, total, targets["ORANGE"])
+    difference = calculate_probability_difference(result.observed_rate, targets["ORANGE"])
+    st.caption(f"显示橙品率 1%；概率单位差异 Δ={difference.absolute_difference:+.6f}（{difference.percentage_point_difference:+.3f} pp）；精确二项检验 p={orange_test.p_value:.4g}。{interpret_p_value(orange_test.p_value, '观测橙品率等于显示值 1%')}")
 
-    quality_columns = {"BLUE": "blue_count", "PURPLE": "purple_count", "ORANGE": "orange_count"}
-    quality_rows = []
-    observed_counts = []
-    for quality, probability in displayed.items():
-        count = int(data[quality_columns[quality]].sum())
-        observed_counts.append(count)
-        quality_rows.append({
-            "品质": QUALITY_LABELS[quality], "观测数量": count,
-            "观测概率": count / total, "显示概率": probability,
-        })
-    qualities = pd.DataFrame(quality_rows)
-    st.subheader("品质分布")
-    st.dataframe(
-        qualities.assign(
-            观测概率=qualities["观测概率"].map(lambda value: f"{value:.2%}"),
-            显示概率=qualities["显示概率"].map(lambda value: f"{value:.2%}"),
-        ),
-        hide_index=True,
-        width="stretch",
-    )
+    qualities = quality_distribution(summary, targets)
+    qualities = qualities[qualities["quality_key"].isin(("blue", "purple", "orange"))]
+    st.subheader("品质分布（79% / 20% / 1%）")
+    shown = qualities.copy()
+    for column in ("rate", "ci_low", "ci_high", "target"):
+        shown[column] = shown[column].map(lambda value: "—" if pd.isna(value) else f"{value:.2%}")
+    st.dataframe(shown[["quality", "count", "trials", "rate", "ci_low", "ci_high", "target"]], hide_index=True, width="stretch")
+    left, right = st.columns(2)
+    with left:
+        show_chart(quality_distribution_chart(qualities, "灵禽院品质观测分布"), "bird-quality")
+    with right:
+        show_chart(observed_vs_target_chart(qualities, "灵禽院品质观测值 vs 显示值"), "bird-quality-target")
     try:
-        statistic, distribution_p = chi_square_goodness_of_fit(
-            observed_counts, list(displayed.values())
-        )
-        st.caption(f"品质分布卡方拟合检验：χ²={statistic:.3f}，p={distribution_p:.4g}")
+        quality_gof = calculate_chi_square_gof(qualities["count"].tolist(), [0.79, 0.20, 0.01])
+        st.caption(f"品质拟合优度检验：χ²={quality_gof.statistic:.3f}，df={quality_gof.degrees_of_freedom}，p={quality_gof.p_value:.4g}。{interpret_p_value(quality_gof.p_value, '观测品质分布符合 79% / 20% / 1% 显示值')}")
     except ValueError as exc:
-        st.caption(f"品质分布检验暂不可用：{exc}")
+        st.caption(f"品质拟合优度检验暂不可用：{exc}")
 
-    st.subheader("种类分布")
-    species = data.groupby("item", as_index=False)["attempt_count"].sum().set_index("item")
-    species = species.reindex(BIRD_SPECIES, fill_value=0).reset_index()
-    species.columns = ["种类", "数量"]
-    species["占比"] = species["数量"] / species["数量"].sum()
-    st.dataframe(
-        species.assign(占比=species["占比"].map(lambda value: f"{value:.2%}")),
-        hide_index=True,
-        width="stretch",
-    )
-    show_chart(px.bar(species, x="种类", y="占比", title="灵禽种类观测分布"), "bird-species")
-    if st.checkbox("检验假设 H0：四种灵禽各为 25%（非官方概率）"):
-        try:
-            statistic, species_p = chi_square_goodness_of_fit(
-                species["数量"].to_numpy(), np.full(4, 0.25)
+    st.subheader("种类分布：非官方等概率假设")
+    species = species_distribution(raw_species, BIRD_SPECIES)
+    st.dataframe(species[["item", "attempts", "observed_rate", "expected_count", "count_difference", "residual"]], hide_index=True, width="stretch")
+    species_chart = species.rename(columns={"observed_rate": "rate", "item": "species"})
+    show_chart(rate_with_ci_chart(species_chart, "species", "灵禽种类观测占比（25% 非官方假设）"), "bird-species")
+    try:
+        species_gof = calculate_chi_square_gof(species["attempts"].tolist(), [0.25] * 4)
+        st.info(f"H0：四种各 25%（非官方）。χ²={species_gof.statistic:.3f}，df={species_gof.degrees_of_freedom}，p={species_gof.p_value:.4g}。{interpret_p_value(species_gof.p_value, '四种灵禽各占 25% 的非官方假设')}")
+    except ValueError as exc:
+        st.warning(f"非官方 25% 假设检验暂不可用：{exc}")
+
+    st.subheader("各种类橙品率")
+    species_rates = proportion_table(species, "item")
+    st.dataframe(species_rates, hide_index=True, width="stretch")
+    show_chart(rate_with_ci_chart(species_rates, "item", "各灵禽种类橙品率与 95% Wilson CI"), "bird-species-orange")
+    comparisons = comparison_table(_pairwise_species(species))
+    if comparisons.empty:
+        st.caption("至少两个种类有样本后才进行种类橙品率比较。")
+    else:
+        st.dataframe(comparisons, hide_index=True, width="stretch")
+        low_sample_species = species.loc[species["attempts"] < 30, "item"].tolist()
+        if low_sample_species:
+            st.warning(
+                "以下种类样本量低于 30，比较检验能力有限："
+                + "、".join(low_sample_species)
             )
-            st.info(f"等概率假设检验：χ²={statistic:.3f}，p={species_p:.4g}")
-        except ValueError as exc:
-            st.warning(f"暂不能进行该检验：{exc}")
+        methods = "、".join(sorted(set(comparisons["test"])))
+        st.caption(f"实际使用的检验：{methods}；同一比较族统一使用 Holm 校正。")
 
-    st.subheader("品质 × 种类")
-    cross = data.groupby("item")[["blue_count", "purple_count", "orange_count"]].sum()
-    cross = cross.reindex(BIRD_SPECIES, fill_value=0).rename(columns={
-        "blue_count": "蓝品", "purple_count": "紫品", "orange_count": "橙品",
-    })
-    st.dataframe(cross, width="stretch")
-    heatmap = px.imshow(
-        cross.to_numpy(), x=cross.columns, y=cross.index,
-        text_auto=True, aspect="auto", title="品质 × 灵禽种类热力图",
-    )
-    show_chart(heatmap, "bird-quality-species")
-
-    st.subheader("会话分析")
-    session_data = data.copy()
-    session_data["session_group"] = session_data["session_id"].fillna(
-        session_data["id"].map(lambda value: f"legacy-{value}")
-    )
-    sessions = session_data.groupby("session_group", as_index=False).agg(
-        searches=("attempt_count", "sum"),
-        orange=("orange_count", "sum"),
-    )
-    session_count = len(sessions)
-    zero = int((sessions["orange"] == 0).sum())
-    one_plus = int((sessions["orange"] >= 1).sum())
-    two_plus = int((sessions["orange"] >= 2).sum())
-    metric_columns = st.columns(5)
-    for column, (label, value) in zip(metric_columns, (
-        ("会话数", session_count),
-        ("平均搜索/会话", f"{sessions['searches'].mean():.2f}"),
-        ("0 橙会话", zero),
-        (">=1 橙会话", one_plus),
-        (">=2 橙会话", two_plus),
-    )):
-        column.metric(label, value)
-    expected_one_plus = sum(
-        session_probability_at_least_one(displayed_orange, int(size))
-        for size in sessions["searches"]
-    ) / session_count
-    st.caption(
-        f"实际至少 1 橙会话比例：{one_plus / session_count:.2%} · "
-        f"按各会话搜索数动态计算的显示模型期望：{expected_one_plus:.2%}"
-    )
-    show_chart(
-        px.histogram(sessions, x="orange", title="实际每会话橙品数量", nbins=9),
-        "bird-session-hist",
-    )
-    if st.button("运行会话 Monte Carlo 对比", key="bird-session-mc"):
-        with st.spinner("按实际会话规模分布进行模拟…"):
-            simulated_sessions = simulate_mixed_sessions(
-                displayed_orange,
-                sessions["searches"].to_numpy(),
-                int(get_setting("default_monte_carlo_iterations", "100000")),
-                int(get_setting("default_random_seed", "42")),
-            )
-        comparison = px.histogram(
-            pd.DataFrame({
-                "橙品数": np.concatenate([simulated_sessions, sessions["orange"].to_numpy()]),
-                "来源": ["Monte Carlo"] * len(simulated_sessions) + ["实际"] * len(sessions),
-            }),
-            x="橙品数", color="来源", histnorm="probability", barmode="overlay",
-            title="实际 vs Monte Carlo 会话橙品分布", opacity=0.7,
-        )
-        show_chart(comparison, "bird-session-mc-result")
+    st.subheader("会话与 8 次搜索")
+    actual = session_summary(sessions)
+    exact = calculate_session_probability(targets["ORANGE"], 8)
+    session_cols = st.columns(5)
+    session_cols[0].metric("会话数", actual["sessions"])
+    session_cols[1].metric("平均搜索/会话", "No Data" if actual["average_searches"] is None else f"{actual['average_searches']:.2f}")
+    session_cols[2].metric("0 橙会话", actual["zero_orange"])
+    session_cols[3].metric(">=1 橙会话", actual["one_or_more"])
+    session_cols[4].metric(">=2 橙会话", actual["two_or_more"])
+    st.caption(f"若每次独立且 p=1%，8 次搜索精确概率：0 橙 {exact.zero:.3%}，恰好 1 橙 {exact.exactly_one:.3%}，≥1 橙 {exact.at_least_one:.3%}，≥2 橙 {exact.at_least_two:.3%}。此处未使用 Monte Carlo。")
 
 
 configure_page("灵禽院分析", "🦅")

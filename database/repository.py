@@ -7,10 +7,10 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pandas as pd
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import and_, delete, func, or_, select, text
 from sqlalchemy.orm import Session
 
-from config.domain import MATERIAL_PRODUCTION
+from config.domain import BIRD_RANDOM, HORSE_SEARCH, MATERIAL_PRODUCTION
 from database.models import (
     Category,
     Item,
@@ -331,40 +331,22 @@ class ObservationRepository:
         if frame.empty:
             return pd.DataFrame(
                 columns=[
-                    "id",
-                    "datetime",
-                    "material",
-                    "skill_level",
-                    "quantity",
-                    "red_quantity",
-                    "remark",
+                    "id", "datetime", "material", "skill_level", "quantity",
+                    "red_quantity", "remark",
                 ]
             )
         return frame.rename(
             columns={
-                "observed_at": "datetime",
-                "item": "material",
-                "level": "skill_level",
-                "attempt_count": "quantity",
+                "observed_at": "datetime", "item": "material",
+                "level": "skill_level", "attempt_count": "quantity",
                 "orange_count": "red_quantity",
             }
-        )[
-            [
-                "id",
-                "datetime",
-                "material",
-                "skill_level",
-                "quantity",
-                "red_quantity",
-                "remark",
-            ]
-        ]
+        )[["id", "datetime", "material", "skill_level", "quantity", "red_quantity", "remark"]]
 
     def totals_by_category(self) -> pd.DataFrame:
         rows = self.session.execute(
             select(
-                Category.name.label("category"),
-                Category.category_type,
+                Category.name.label("category"), Category.category_type,
                 func.count(Observation.id).label("records"),
                 func.coalesce(func.sum(Observation.attempt_count), 0).label("attempts"),
                 func.coalesce(func.sum(Observation.orange_count), 0).label("orange"),
@@ -377,7 +359,112 @@ class ObservationRepository:
         return pd.DataFrame(rows)
 
     def daily_totals(self) -> pd.DataFrame:
-        """Aggregate dashboard time-series in PostgreSQL."""
+        rows = self.session.execute(
+            select(
+                Observation.observed_at.label("date"), Category.name.label("category"),
+                Category.category_type,
+                func.sum(Observation.attempt_count).label("attempt_count"),
+                func.sum(Observation.orange_count).label("orange_count"),
+            )
+            .join(Category, Observation.category_id == Category.id)
+            .group_by(
+                Observation.observed_at, Category.id, Category.name,
+                Category.category_type,
+            )
+            .order_by(Observation.observed_at)
+        ).mappings()
+        frame = pd.DataFrame(rows)
+        if not frame.empty:
+            frame["date"] = pd.to_datetime(frame["date"])
+        return frame
+
+
+class AnalysisRepository:
+    """Compact SQL aggregations for Phase 3 statistical analysis.
+
+    Analysis pages receive grouped rows only.  Invalid legacy rows are excluded
+    defensively even though current database constraints and validators prevent
+    new invalid observations.
+    """
+
+    QUALITY_COLUMNS = ("green_count", "blue_count", "purple_count", "orange_count", "unaccounted_count")
+
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    @staticmethod
+    def _valid_observation(category_type: str | None = None):
+        quality_total = (
+            Observation.green_count + Observation.blue_count
+            + Observation.purple_count + Observation.orange_count
+            + Observation.unaccounted_count
+        )
+        base_rules = and_(
+            Observation.attempt_count > 0,
+            Observation.level > 0,
+            Observation.green_count >= 0,
+            Observation.blue_count >= 0,
+            Observation.purple_count >= 0,
+            Observation.orange_count >= 0,
+            Observation.unaccounted_count >= 0,
+            quality_total <= Observation.attempt_count,
+        )
+        category_rules = {
+            MATERIAL_PRODUCTION: and_(
+                Observation.level.in_((9, 10, 11, 12)),
+            ),
+            HORSE_SEARCH: and_(
+                Observation.attempt_count <= 8,
+                quality_total == Observation.attempt_count,
+            ),
+            BIRD_RANDOM: and_(
+                Observation.attempt_count == 1,
+                Observation.green_count == 0,
+                Observation.unaccounted_count == 0,
+                Observation.blue_count + Observation.purple_count
+                + Observation.orange_count == 1,
+            ),
+        }
+        if category_type is not None:
+            return and_(base_rules, category_rules[category_type])
+        return and_(
+            base_rules,
+            or_(*(
+                and_(Category.category_type == name, rules)
+                for name, rules in category_rules.items()
+            )),
+        )
+
+    @staticmethod
+    def _frame(rows: Any, columns: list[str]) -> pd.DataFrame:
+        return pd.DataFrame(list(rows), columns=columns)
+
+    def dashboard_totals(self) -> pd.DataFrame:
+        columns = ["category", "category_type", "records", "items_with_data", "attempts", "orange"]
+        rows = self.session.execute(
+            select(
+                Category.name.label("category"),
+                Category.category_type,
+                func.count(Observation.id).label("records"),
+                func.count(func.distinct(Observation.item_id)).label("items_with_data"),
+                func.coalesce(func.sum(Observation.attempt_count), 0).label("attempts"),
+                func.coalesce(func.sum(Observation.orange_count), 0).label("orange"),
+            )
+            .outerjoin(
+                Observation,
+                and_(
+                    Observation.category_id == Category.id,
+                    self._valid_observation(),
+                ),
+            )
+            .where(Category.active.is_(True))
+            .group_by(Category.id, Category.name, Category.category_type)
+            .order_by(Category.id)
+        ).mappings()
+        return self._frame(rows, columns)
+
+    def daily_totals(self) -> pd.DataFrame:
+        columns = ["date", "category", "category_type", "attempt_count", "orange_count"]
         rows = self.session.execute(
             select(
                 Observation.observed_at.label("date"),
@@ -387,16 +474,163 @@ class ObservationRepository:
                 func.sum(Observation.orange_count).label("orange_count"),
             )
             .join(Category, Observation.category_id == Category.id)
+            .where(self._valid_observation())
             .group_by(
-                Observation.observed_at, Category.name, Category.category_type
+                Observation.observed_at, Category.id, Category.name,
+                Category.category_type,
             )
-            .order_by(Observation.observed_at)
+            .order_by(Observation.observed_at, Category.id)
         ).mappings()
-        frame = pd.DataFrame(rows)
+        frame = self._frame(rows, columns)
         if not frame.empty:
             frame["date"] = pd.to_datetime(frame["date"])
         return frame
 
+    def material_summary(
+        self, material: str | None = None, level: int | None = None
+    ) -> pd.DataFrame:
+        columns = ["item", "level", "records", "attempts", "orange"]
+        statement = (
+            select(
+                Item.name.label("item"),
+                Observation.level,
+                func.count(Observation.id).label("records"),
+                func.sum(Observation.attempt_count).label("attempts"),
+                func.sum(Observation.orange_count).label("orange"),
+            )
+            .join(Category, Observation.category_id == Category.id)
+            .join(Item, Observation.item_id == Item.id)
+            .where(
+                Category.category_type == MATERIAL_PRODUCTION,
+                Observation.level.in_((9, 10, 11, 12)),
+                self._valid_observation(MATERIAL_PRODUCTION),
+            )
+        )
+        if material:
+            statement = statement.where(Item.name == material)
+        if level is not None:
+            statement = statement.where(Observation.level == level)
+        rows = self.session.execute(
+            statement.group_by(Item.name, Observation.level).order_by(Item.name, Observation.level)
+        ).mappings()
+        return self._frame(rows, columns)
+
+    def material_daily(
+        self, material: str | None = None, level: int | None = None
+    ) -> pd.DataFrame:
+        columns = ["date", "attempts", "orange"]
+        statement = (
+            select(
+                Observation.observed_at.label("date"),
+                func.sum(Observation.attempt_count).label("attempts"),
+                func.sum(Observation.orange_count).label("orange"),
+            )
+            .join(Category, Observation.category_id == Category.id)
+            .join(Item, Observation.item_id == Item.id)
+            .where(
+                Category.category_type == MATERIAL_PRODUCTION,
+                Observation.level.in_((9, 10, 11, 12)),
+                self._valid_observation(MATERIAL_PRODUCTION),
+            )
+        )
+        if material:
+            statement = statement.where(Item.name == material)
+        if level is not None:
+            statement = statement.where(Observation.level == level)
+        rows = self.session.execute(
+            statement.group_by(Observation.observed_at).order_by(Observation.observed_at)
+        ).mappings()
+        frame = self._frame(rows, columns)
+        if not frame.empty:
+            frame["date"] = pd.to_datetime(frame["date"])
+        return frame
+
+    def quality_summary(
+        self, category_type: str, item: str | None = None, level: int | None = None
+    ) -> pd.DataFrame:
+        columns = [
+            "records", "attempts", "green", "blue", "purple", "orange", "unaccounted"
+        ]
+        statement = (
+            select(
+                func.count(Observation.id).label("records"),
+                func.coalesce(func.sum(Observation.attempt_count), 0).label("attempts"),
+                func.coalesce(func.sum(Observation.green_count), 0).label("green"),
+                func.coalesce(func.sum(Observation.blue_count), 0).label("blue"),
+                func.coalesce(func.sum(Observation.purple_count), 0).label("purple"),
+                func.coalesce(func.sum(Observation.orange_count), 0).label("orange"),
+                func.coalesce(func.sum(Observation.unaccounted_count), 0).label("unaccounted"),
+            )
+            .join(Category, Observation.category_id == Category.id)
+            .join(Item, Observation.item_id == Item.id)
+            .where(
+                Category.category_type == category_type,
+                self._valid_observation(category_type),
+            )
+        )
+        if item:
+            statement = statement.where(Item.name == item)
+        if level is not None:
+            statement = statement.where(Observation.level == level)
+        rows = self.session.execute(statement).mappings()
+        return self._frame(rows, columns)
+
+    def quality_by_item(
+        self, category_type: str, level: int | None = None
+    ) -> pd.DataFrame:
+        columns = [
+            "item", "records", "attempts", "green", "blue", "purple", "orange", "unaccounted"
+        ]
+        statement = (
+            select(
+                Item.name.label("item"),
+                func.count(Observation.id).label("records"),
+                func.sum(Observation.attempt_count).label("attempts"),
+                func.sum(Observation.green_count).label("green"),
+                func.sum(Observation.blue_count).label("blue"),
+                func.sum(Observation.purple_count).label("purple"),
+                func.sum(Observation.orange_count).label("orange"),
+                func.sum(Observation.unaccounted_count).label("unaccounted"),
+            )
+            .join(Category, Observation.category_id == Category.id)
+            .join(Item, Observation.item_id == Item.id)
+            .where(
+                Category.category_type == category_type,
+                self._valid_observation(category_type),
+            )
+        )
+        if level is not None:
+            statement = statement.where(Observation.level == level)
+        rows = self.session.execute(
+            statement.group_by(Item.name).order_by(Item.name)
+        ).mappings()
+        return self._frame(rows, columns)
+
+    def session_summary(
+        self, category_type: str, item: str | None = None, level: int | None = None
+    ) -> pd.DataFrame:
+        columns = ["session_id", "searches", "orange"]
+        statement = (
+            select(
+                Observation.session_id,
+                func.sum(Observation.attempt_count).label("searches"),
+                func.sum(Observation.orange_count).label("orange"),
+            )
+            .join(Category, Observation.category_id == Category.id)
+            .join(Item, Observation.item_id == Item.id)
+            .where(
+                Category.category_type == category_type,
+                self._valid_observation(category_type),
+            )
+        )
+        if item:
+            statement = statement.where(Item.name == item)
+        if level is not None:
+            statement = statement.where(Observation.level == level)
+        rows = self.session.execute(
+            statement.group_by(Observation.session_id).order_by(Observation.session_id)
+        ).mappings()
+        return self._frame(rows, columns)
 
 class ProbabilityRepository:
     def __init__(self, session: Session) -> None:

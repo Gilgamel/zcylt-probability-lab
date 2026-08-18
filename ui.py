@@ -16,6 +16,7 @@ from database.db import (
     session_scope,
 )
 from database.repository import (
+    AnalysisRepository,
     ObservationRepository,
     ProbabilityRepository,
     SettingsRepository,
@@ -61,8 +62,35 @@ def load_dashboard_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     """Load SQL-aggregated dashboard totals and daily time series."""
     prepare_database()
     with session_scope() as session:
-        repository = ObservationRepository(session)
-        return repository.totals_by_category(), repository.daily_totals()
+        repository = AnalysisRepository(session)
+        return repository.dashboard_totals(), repository.daily_totals()
+
+
+def load_material_analysis(
+    material: str | None = None, level: int | None = None
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Load compact material group and daily aggregates from PostgreSQL."""
+    prepare_database()
+    with session_scope() as session:
+        repository = AnalysisRepository(session)
+        return (
+            repository.material_summary(material, level),
+            repository.material_daily(material, level),
+        )
+
+
+def load_quality_analysis(
+    category_type: str, item: str | None = None, level: int | None = None
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Load compact quality, item and session aggregates from PostgreSQL."""
+    prepare_database()
+    with session_scope() as session:
+        repository = AnalysisRepository(session)
+        return (
+            repository.quality_summary(category_type, item, level),
+            repository.quality_by_item(category_type, level),
+            repository.session_summary(category_type, item, level),
+        )
 
 
 def get_setting(key: str, fallback: str) -> str:

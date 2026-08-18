@@ -1,51 +1,31 @@
-"""Skill-level comparison and confidence interval charts."""
+"""Focused skill comparison backed by the shared Phase 3 analysis service."""
 
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
 
-from charts.plotly_chart import bar
-from config.domain import MATERIALS, SKILL_LEVELS
-from services.statistics import sample_sufficiency
-from ui import configure_page, load_logs, page_guard, show_chart, sufficiency_settings
+from charts.statistical_charts import rate_with_ci_chart
+from config.domain import MATERIALS
+from services.analysis import comparison_table, complete_level_table, pairwise_level_comparisons
+from ui import configure_page, load_material_analysis, page_guard, show_chart
 
 
 def render() -> None:
-    st.title("技能等级分析")
+    st.title("技能等级比较")
     selected = st.selectbox("材料范围", ("全部材料", *MATERIALS))
-    data = load_logs()
-    if selected != "全部材料" and not data.empty:
-        data = data[data["material"] == selected]
-    if data.empty:
-        st.info("当前筛选条件下暂无数据；下表仍显示所有技能等级的零样本状态。")
-        grouped = pd.DataFrame(columns=["quantity", "red_quantity"])
+    grouped, _ = load_material_analysis(None if selected == "全部材料" else selected)
+    levels = complete_level_table(grouped)
+    display = levels.copy()
+    display["观测率"] = display["rate"].map(lambda value: "No Data" if pd.isna(value) else f"{value:.3%}")
+    display["95% Wilson CI"] = ["No Data" if pd.isna(low) else f"{low:.3%}–{high:.3%}" for low, high in zip(levels["ci_low"], levels["ci_high"])]
+    st.dataframe(display[["level", "trials", "successes", "观测率", "95% Wilson CI", "sample_quality"]], hide_index=True, width="stretch")
+    show_chart(rate_with_ci_chart(levels, "level", "技能等级橙品率"), "skill-level-ci")
+    table = comparison_table(pairwise_level_comparisons(grouped))
+    if table.empty:
+        st.info("当前数据不足以完成预设等级比较。")
     else:
-        grouped = data.groupby("skill_level")[["quantity", "red_quantity"]].sum()
-    thresholds, target_margin = sufficiency_settings()
-    rows = []
-    for skill in SKILL_LEVELS:
-        total = int(grouped.loc[skill, "quantity"]) if skill in grouped.index else 0
-        red = int(grouped.loc[skill, "red_quantity"]) if skill in grouped.index else 0
-        info = sample_sufficiency(red, total, thresholds, target_margin)
-        rows.append({"技能": skill, "产量": total, "红色": red, "掉率": info.rate, "下限": info.ci_low, "上限": info.ci_high, "误差": info.margin_of_error, "需新增": info.additional_samples, "质量": f"{info.grade} · {info.label}"})
-    summary = pd.DataFrame(rows)
-    display = summary.copy()
-    display["掉率"] = display["掉率"].map(lambda value: f"{value:.2%}")
-    display["95% CI"] = [f"{low:.2%} – {high:.2%}" for low, high in zip(summary["下限"], summary["上限"])]
-    display["误差"] = display["误差"].map(lambda value: f"±{value:.2%}")
-    st.dataframe(display[["技能", "产量", "红色", "掉率", "95% CI", "误差", "需新增", "质量"]], hide_index=True, width="stretch")
-    error_figure = go.Figure(go.Scatter(
-        x=summary["技能"], y=summary["掉率"], mode="markers+lines",
-        error_y={"type": "data", "symmetric": False, "array": summary["上限"] - summary["掉率"], "arrayminus": summary["掉率"] - summary["下限"]},
-    ))
-    error_figure.update_layout(title="各技能掉率与 95% 置信区间", xaxis_title="技能等级", yaxis_title="掉率")
-    left, right = st.columns(2)
-    with left:
-        show_chart(bar(summary, "技能", "掉率", "各技能掉率"), "skill-rate")
-        show_chart(bar(summary, "技能", "产量", "各技能样本量"), "skill-size")
-    with right:
-        show_chart(error_figure, "skill-error")
+        st.dataframe(table, hide_index=True, width="stretch")
+        st.caption("同时展示原始 p 值与 Holm 校正 p 值；significant 依据校正值判断，α=0.05。")
 
 
-configure_page("技能分析", "📊")
+configure_page("技能等级比较", "📊")
 page_guard(render)
