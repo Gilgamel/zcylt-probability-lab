@@ -123,11 +123,12 @@ def test_phase2_acceptance_a_through_g(postgres_factory) -> None:
                 saved_horse.orange_count,
             ) == (8, 3, 4, 0, 1)
             saved_birds = [session.get(Observation, bird_id) for bird_id in ids[2:]]
-            assert len(saved_birds) == 8
+            assert len(saved_birds) == 4
             assert len({bird.session_id for bird in saved_birds}) == 1
             assert [bird.item.name for bird in saved_birds] == [
-                species for species, _ in bird_results
+                "铁羽雁", "九炎鹊", "出云鹤", "暗铁鸦"
             ]
+            assert sum(bird.attempt_count for bird in saved_birds) == 8
 
         first_process = _start_streamlit()
         _stop_streamlit(first_process)
@@ -155,7 +156,7 @@ def test_phase2_acceptance_a_through_g(postgres_factory) -> None:
             payload = observations_csv_bytes(acceptance)
             exported = pd.read_csv(BytesIO(payload), encoding="utf-8-sig")
             assert tuple(exported.columns) == EXPORT_COLUMNS
-            assert len(exported) == 10
+            assert len(exported) == 6
             assert set(ids).issubset(set(exported["id"].astype(int)))
 
         with postgres_factory.begin() as session:

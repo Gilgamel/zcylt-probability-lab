@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 from config.domain import (
     BIRD_RANDOM,
-    BIRD_TARGETED,
+    BIRD_SPECIES,
     DEFAULTS,
     HORSE_SEARCH,
     MATERIAL_PRODUCTION,
@@ -15,6 +15,7 @@ from services.validation import (
     ObservationInput,
     ProductionInput,
     validate_bird_session,
+    validate_bird_counts,
     validate_csv,
     validate_horse_session,
     validate_material_entry,
@@ -134,7 +135,7 @@ def test_horse_session_rejects_nine_results() -> None:
         )
 
 
-def test_bird_session_keeps_eight_individual_results_under_one_session() -> None:
+def test_bird_session_aggregates_eight_results_by_species() -> None:
     results = [
         ("铁羽雁", "BLUE"), ("九炎鹊", "PURPLE"),
         ("出云鹤", "ORANGE"), ("暗铁鸦", "BLUE"),
@@ -142,33 +143,41 @@ def test_bird_session_keeps_eight_individual_results_under_one_session() -> None
         ("出云鹤", "BLUE"), ("暗铁鸦", "ORANGE"),
     ]
     records = validate_bird_session(level=10, results=results)
-    assert len(records) == 8
+    assert len(records) == 4
     assert len({record.session_id for record in records}) == 1
-    assert all(record.attempt_count == 1 for record in records)
-    assert [record.item for record in records] == [species for species, _ in results]
+    assert all(record.attempt_count == 2 for record in records)
+    assert [record.item for record in records] == list(BIRD_SPECIES)
     assert all(
-        record.blue_count + record.purple_count + record.orange_count == 1
+        record.blue_count + record.purple_count + record.orange_count
+        == record.attempt_count
         for record in records
     )
+    by_species = {record.item: record for record in records}
+    assert by_species["铁羽雁"].blue_count == 2
+    assert by_species["九炎鹊"].purple_count == 2
+    assert (by_species["出云鹤"].blue_count, by_species["出云鹤"].orange_count) == (1, 1)
 
 
-def test_targeted_bird_session_is_stored_separately_from_random_cultivation() -> None:
-    records = validate_bird_session(
+def test_bird_count_matrix_omits_empty_species_and_limits_session_to_eight() -> None:
+    records = validate_bird_counts(
         level=10,
-        results=[("出云鹤", "BLUE"), ("出云鹤", "ORANGE")],
-        category_type=BIRD_TARGETED,
+        counts={
+            "铁羽雁": {"BLUE": 3, "PURPLE": 1, "ORANGE": 0},
+            "出云鹤": {"BLUE": 2, "PURPLE": 1, "ORANGE": 1},
+        },
     )
-    assert {record.category_type for record in records} == {BIRD_TARGETED}
-    assert {record.item for record in records} == {"出云鹤"}
+    assert {record.category_type for record in records} == {BIRD_RANDOM}
+    assert {record.item for record in records} == {"铁羽雁", "出云鹤"}
+    assert sum(record.attempt_count for record in records) == 8
     assert len({record.session_id for record in records}) == 1
 
 
-def test_bird_session_rejects_non_bird_cultivation_mode() -> None:
-    with pytest.raises(ValueError, match="培养方式"):
-        validate_bird_session(
+@pytest.mark.parametrize("total", [0, 9])
+def test_bird_count_matrix_rejects_total_outside_one_to_eight(total: int) -> None:
+    with pytest.raises(ValueError, match="1 到 8"):
+        validate_bird_counts(
             level=10,
-            results=[("铁羽雁", "BLUE")],
-            category_type=HORSE_SEARCH,
+            counts={"铁羽雁": {"BLUE": total}},
         )
 
 

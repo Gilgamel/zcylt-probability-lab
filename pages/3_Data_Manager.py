@@ -264,6 +264,71 @@ def _manage_one_record(filtered: pd.DataFrame) -> None:
                 st.error("记录不存在或已被删除。")
 
 
+def _bulk_delete_records(filtered: pd.DataFrame) -> None:
+    """Password-protect an atomic deletion of explicitly selected records."""
+    if filtered.empty:
+        return
+    with st.expander("批量删除记录"):
+        st.warning("批量删除不可撤销。建议先导出当前筛选 CSV 作为备份。")
+        record_ids = filtered["id"].astype(int).tolist()
+        option_labels = {
+            int(row["id"]): _record_option_label(row)
+            for _, row in filtered.iterrows()
+        }
+        select_all = st.checkbox(
+            f"选择当前筛选结果中的全部 {len(record_ids)} 条记录",
+            key="bulk-delete-select-all",
+        )
+        if select_all:
+            selected_ids = record_ids
+            st.caption(f"已选择全部 {len(selected_ids)} 条当前筛选记录。")
+        else:
+            selected_ids = st.multiselect(
+                "选择要批量删除的记录",
+                record_ids,
+                format_func=lambda value: option_labels[int(value)],
+                key="bulk-delete-ids",
+            )
+
+        if selected_ids:
+            selected_set = {int(value) for value in selected_ids}
+            preview = filtered[filtered["id"].astype(int).isin(selected_set)]
+            st.caption(f"将删除 {len(selected_set)} 条记录，请核对以下内容：")
+            st.dataframe(
+                _display_frame(preview), hide_index=True, width="stretch"
+            )
+
+        password_configured = delete_password_is_configured()
+        if not password_configured:
+            st.warning("删除功能尚未启用：请在 Streamlit Secrets 中配置 DELETE_PASSWORD。")
+        delete_password = st.text_input(
+            "批量删除密码",
+            type="password",
+            disabled=not password_configured,
+            key="bulk-delete-password",
+        )
+        confirm_delete = st.checkbox(
+            f"我确认永久删除所选 {len(selected_ids)} 条记录",
+            disabled=not (password_configured and selected_ids),
+            key="bulk-delete-confirm",
+        )
+        if st.button(
+            "批量删除所选记录",
+            disabled=not (password_configured and selected_ids and confirm_delete),
+            type="primary",
+            key="bulk-delete-submit",
+        ):
+            if not verify_delete_password(delete_password):
+                st.error("删除密码错误，未删除任何记录。")
+            else:
+                with session_scope() as session:
+                    deleted_count = ObservationRepository(session).delete_many(
+                        selected_ids
+                    )
+                st.success(f"已批量删除 {deleted_count} 条记录。")
+                st.rerun()
+
+
 def render() -> None:
     """Render Phase 2 raw-data management."""
     st.title("数据管理")
@@ -294,6 +359,7 @@ def render() -> None:
     )
     st.divider()
     _manage_one_record(filtered)
+    _bulk_delete_records(filtered)
 
 
 configure_page("数据管理")

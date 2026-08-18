@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date, datetime
 from typing import Any
 from uuid import UUID, uuid4
@@ -261,6 +262,16 @@ class ObservationRepository:
             delete(Observation).where(Observation.id == observation_id)
         )
         return bool(result.rowcount)
+
+    def delete_many(self, observation_ids: Iterable[int]) -> int:
+        """Delete an explicit ID set in the caller's current transaction."""
+        normalized_ids = sorted({int(value) for value in observation_ids})
+        if not normalized_ids:
+            return 0
+        result = self.session.execute(
+            delete(Observation).where(Observation.id.in_(normalized_ids))
+        )
+        return int(result.rowcount or 0)
 
     def by_id(self, observation_id: int) -> Observation | None:
         return self.session.get(Observation, observation_id)

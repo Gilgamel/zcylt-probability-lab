@@ -29,8 +29,7 @@ def _pairwise_species(frame: pd.DataFrame):
 def render() -> None:
     st.title("灵禽院统计分析")
     st.caption(
-        "本页当前分析普通培养（随机品种）；特定品种培养记录单独保存，"
-        "不会进入四种各 25% 的非官方检验假设。"
+        "灵禽院仅分析随机培养；四种各 25% 仅作为清楚标注的非官方检验假设。"
     )
     level_choice = st.selectbox("等级", (10, "全部等级"))
     level = None if level_choice == "全部等级" else int(level_choice)

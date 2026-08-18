@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from time import sleep
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
@@ -17,6 +18,21 @@ from database.repository import (
     SimulationRepository,
     SkillProgressionRepository,
 )
+
+
+def test_observation_bulk_delete_uses_one_explicit_id_statement() -> None:
+    session = MagicMock()
+    session.execute.return_value.rowcount = 2
+    repository = ObservationRepository(session)
+    assert repository.delete_many([7, 3, 7]) == 2
+    session.execute.assert_called_once()
+
+
+def test_observation_bulk_delete_skips_empty_selection() -> None:
+    session = MagicMock()
+    repository = ObservationRepository(session)
+    assert repository.delete_many([]) == 0
+    session.execute.assert_not_called()
 
 
 def test_category_and_item_crud(postgres_factory) -> None:

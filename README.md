@@ -104,6 +104,10 @@ DATABASE_URL = "postgresql+psycopg://USER:PASSWORD@HOST/DATABASE?sslmode=require
 数据管理表第一列显示数据库自动生成的记录 ID；编辑/删除选择器同时显示
 日期、分类、项目、等级、数量和备注摘要，便于在操作前核对目标记录。
 
+批量删除可以多选记录，或删除当前筛选结果中的全部记录。执行前会显示完整
+预览，并要求 `DELETE_PASSWORD` 和不可撤销确认；整批删除在同一数据库事务
+内执行。
+
 ## 测试
 
 默认测试覆盖配置失败关闭、PostgreSQL DDL 编译、输入验证、统计、模拟和备份验证：
