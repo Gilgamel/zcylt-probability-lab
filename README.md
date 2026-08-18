@@ -1,6 +1,6 @@
 # ProbabilityLab
 
-《这城有良田》的个人概率研究工具，用于记录官匠营、马厩和灵禽院观测，进行统计估计、假设检验、Monte Carlo 模拟与备份恢复。
+《这城有良田》的个人概率研究工具，用于记录官匠营、马厩和灵禽院观测，进行统计估计、假设检验、蒙特卡洛模拟与备份恢复。
 
 ## 架构
 
@@ -66,7 +66,7 @@ DATABASE_URL = "postgresql+psycopg://USER:PASSWORD@HOST/DATABASE?sslmode=require
 ```
 
 6. 保存并重启应用。
-7. Dashboard 应显示“数据库状态：Connected”。
+7. 仪表盘应显示“数据库状态：Connected”。
 8. 新建一条测试观测，刷新页面并重启应用，确认记录仍存在。
 9. 在数据管理页导出 CSV，删除临时测试记录并确认观测总数恢复。
 

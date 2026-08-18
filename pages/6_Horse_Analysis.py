@@ -90,7 +90,7 @@ def render() -> None:
     cols[2].metric("0 橙会话", actual["zero_orange"])
     cols[3].metric(">=1 橙会话", actual["one_or_more"])
     cols[4].metric(">=2 橙会话", actual["two_or_more"])
-    st.caption(f"若每次独立且 p=1%，8 次搜索的精确二项概率：0 橙 {exact.zero:.3%}，恰好 1 橙 {exact.exactly_one:.3%}，≥1 橙 {exact.at_least_one:.3%}，≥2 橙 {exact.at_least_two:.3%}。此处未使用 Monte Carlo。")
+    st.caption(f"若每次独立且 p=1%，8 次搜索的精确二项概率：0 橙 {exact.zero:.3%}，恰好 1 橙 {exact.exactly_one:.3%}，≥1 橙 {exact.at_least_one:.3%}，≥2 橙 {exact.at_least_two:.3%}。此处未使用蒙特卡洛模拟。")
 
 
 configure_page("马厩分析")

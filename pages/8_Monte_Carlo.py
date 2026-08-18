@@ -121,7 +121,7 @@ def _render_binary(result: BinaryMonteCarloResult) -> None:
     show_chart(binary_count_distribution_chart(result), "mc-binary-count")
     show_chart(binary_rate_distribution_chart(result), "mc-binary-rate")
     st.info(
-        f"解释：{outcome.classification}。95% Monte Carlo 模拟区间是模型生成结果的"
+        f"解释：{outcome.classification}。95% 蒙特卡洛模拟区间是模型生成结果的"
         "经验 2.5%–97.5% 分位区间；Very unusual 使用中央 99%（0.5%–99.5%）区间判断。"
         "这些都不是参数置信区间。"
     )
@@ -178,7 +178,7 @@ def _render_actual_summary(inputs: dict[str, Any]) -> None:
 
 def _render_phase3_inference(inputs: dict[str, Any]) -> None:
     """Reuse Phase 3 tests and keep their p-values separate from simulation."""
-    st.subheader("Phase 3 statistical inference（与 Monte Carlo 分开）")
+    st.subheader("Phase 3 statistical inference（与蒙特卡洛模拟分开）")
     trials = inputs["actual_trials"]
     if not trials:
         st.caption("No actual observations available; no inferential test is calculated.")
@@ -379,7 +379,7 @@ def _render_horse_session(inputs: dict[str, Any], seed: int, simulations: int) -
     result = simulate_binary(0.01, 8, simulations, (seed + 1) % (MAX_SEED + 1))
     frame = session_probability_frame(result, comparable)
     st.subheader("8 次搜索会话")
-    st.caption("Monte Carlo 是对 Phase 3 精确二项结果的补充，不替代精确计算。")
+    st.caption("蒙特卡洛模拟是对 Phase 3 精确二项结果的补充，不替代精确计算。")
     st.dataframe(frame, hide_index=True, width="stretch")
     show_chart(session_distribution_chart(frame), "mc-horse-session")
     return {
@@ -423,12 +423,12 @@ def _history() -> None:
 
 
 def render() -> None:
-    configure_page("Monte Carlo")
-    st.title("Monte Carlo 模拟实验室")
+    configure_page("蒙特卡洛模拟")
+    st.title("蒙特卡洛模拟")
     st.caption("模型假设 → 生成独立数据集 → 与当前筛选观测比较 → 可选保存摘要")
     st.info(
         "Phase 3 从实际观测执行统计推断；Phase 4 在选定概率模型下模拟许多假想数据集。"
-        "p 值与 Monte Carlo 百分位会分别展示，不合并为“置信分数”。"
+        "p 值与蒙特卡洛百分位会分别展示，不合并为“置信分数”。"
     )
     system = st.selectbox(
         "模型",
@@ -462,7 +462,7 @@ def render() -> None:
     if manual_probability_missing:
         st.warning("Manual theoretical model requires an explicit target probability.")
     if st.button(
-        "运行 Monte Carlo", type="primary", width="stretch",
+        "运行蒙特卡洛模拟", type="primary", width="stretch",
         disabled=empirical_unavailable or manual_probability_missing or start > end,
     ):
         with st.spinner("正在生成独立模拟数据集…"):
@@ -491,13 +491,13 @@ def render() -> None:
         st.subheader("统计解释保护")
         st.caption(
             "经验百分位为 P(模拟数量 ≤ 实际数量)。双侧经验尾概率按“距模型期望至少与实际一样远”"
-            "的模拟结果比例计算，并采用 +1 修正；它受 Monte Carlo 误差影响。模拟不证明独立性、"
+            "的模拟结果比例计算，并采用 +1 修正；它受蒙特卡洛误差影响。模拟不证明独立性、"
             "平稳性或游戏机制，且不替代 Phase 3 的精确检验与置信区间。"
         )
-        with st.expander("Monte Carlo limitations", expanded=False):
+        with st.expander("蒙特卡洛模拟的局限", expanded=False):
             st.write(
                 "结果依赖所选理论模型；模拟不能证明模型正确。默认假设试验相互独立且概率固定。"
-                "Monte Carlo 存在数值模拟误差；增加模拟次数可降低该误差，但不能修复错误的模型假设。"
+                "蒙特卡洛模拟存在数值误差；增加模拟次数可降低该误差，但不能修复错误的模型假设。"
                 "100,000 次模拟表示 100,000 个独立的假想数据集，不等于 100,000 条真实观测。"
             )
         if st.button("保存此模拟摘要", disabled=state["saved"]):

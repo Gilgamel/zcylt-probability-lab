@@ -26,9 +26,18 @@ from services.statistics import SufficiencyThresholds
 
 logger.add(LOG_DIR / "probability_lab.log", rotation="5 MB", retention="14 days")
 
+# Transparent favicon: no emoji and no visible Streamlit logo in the browser tab.
+TRANSPARENT_FAVICON = (
+    "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
+)
+
 
 def configure_page(title: str) -> None:
-    st.set_page_config(page_title=f"{title} · ProbabilityLab", layout="wide")
+    st.set_page_config(
+        page_title=f"{title} · ProbabilityLab",
+        page_icon=TRANSPARENT_FAVICON,
+        layout="wide",
+    )
     st.markdown(
         """
         <style>
