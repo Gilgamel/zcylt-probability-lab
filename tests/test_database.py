@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.schema import CreateIndex, CreateTable
 
-from config.domain import BIRD_RANDOM, HORSE_SEARCH, MATERIAL_PRODUCTION
+from config.domain import BIRD_RANDOM, BIRD_TARGETED, HORSE_SEARCH, MATERIAL_PRODUCTION
 from database import db
 from database.db import (
     Base,
@@ -91,14 +91,21 @@ def test_reference_seed_is_idempotent_and_exact(postgres_factory) -> None:
         categories = {
             row.category_type: row.id for row in session.scalars(select(Category))
         }
-        assert set(categories) == {MATERIAL_PRODUCTION, HORSE_SEARCH, BIRD_RANDOM}
+        assert set(categories) == {
+            MATERIAL_PRODUCTION, HORSE_SEARCH, BIRD_RANDOM, BIRD_TARGETED,
+        }
         counts = {
             category_type: session.scalar(
                 select(func.count()).select_from(Item).where(Item.category_id == category_id)
             )
             for category_type, category_id in categories.items()
         }
-        assert counts == {MATERIAL_PRODUCTION: 9, HORSE_SEARCH: 4, BIRD_RANDOM: 4}
+        assert counts == {
+            MATERIAL_PRODUCTION: 9,
+            HORSE_SEARCH: 4,
+            BIRD_RANDOM: 4,
+            BIRD_TARGETED: 4,
+        }
         horse_sum = session.scalar(
             select(func.sum(ProbabilityTarget.displayed_probability)).where(
                 ProbabilityTarget.category_id == categories[HORSE_SEARCH]

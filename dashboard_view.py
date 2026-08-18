@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from charts.plotly_chart import bar, line
-from config.domain import BIRD_RANDOM, HORSE_SEARCH, MATERIAL_PRODUCTION
+from config.domain import BIRD_RANDOM, BIRD_TARGETED, HORSE_SEARCH, MATERIAL_PRODUCTION
 from services.analysis import dashboard_daily_metrics
 from services.statistics import calculate_proportion, classify_sample_quality
 from ui import (
@@ -23,6 +23,7 @@ def _category_card(
     attempts: int,
     orange: int,
     attempt_label: str,
+    success_label: str,
     items_with_data: int | None = None,
     displayed: float | None = None,
 ) -> None:
@@ -38,7 +39,7 @@ def _category_card(
         columns[offset].metric("有数据材料", "No Data" if records == 0 else items_with_data)
         offset += 1
     columns[offset].metric(attempt_label, "No Data" if records == 0 else attempts)
-    columns[offset + 1].metric("红/橙数量", "No Data" if records == 0 else orange)
+    columns[offset + 1].metric(success_label, "No Data" if records == 0 else orange)
     columns[offset + 2].metric(
         "观测概率",
         "No Data" if result.observed_rate is None else f"{result.observed_rate:.2%}",
@@ -71,13 +72,21 @@ def render_dashboard() -> None:
     material_records, material_items, material_attempts, material_orange = values(MATERIAL_PRODUCTION)
     horse_records, _, horse_attempts, horse_orange = values(HORSE_SEARCH)
     bird_records, _, bird_attempts, bird_orange = values(BIRD_RANDOM)
-    _category_card("官匠营", material_records, material_attempts, material_orange, "总生产量", material_items)
+    targeted_records, _, targeted_attempts, targeted_orange = values(BIRD_TARGETED)
+    bird_records += targeted_records
+    bird_attempts += targeted_attempts
+    bird_orange += targeted_orange
+    _category_card("官匠营", material_records, material_attempts, material_orange, "总生产量", "红色数量", material_items)
     st.divider()
     horse_displayed = get_displayed_probabilities(HORSE_SEARCH).get("ORANGE")
-    bird_displayed = get_displayed_probabilities(BIRD_RANDOM).get("ORANGE")
-    _category_card("马厩", horse_records, horse_attempts, horse_orange, "总搜索数", displayed=horse_displayed)
+    bird_displayed = (
+        get_displayed_probabilities(BIRD_RANDOM).get("ORANGE")
+        if targeted_records == 0
+        else None
+    )
+    _category_card("马厩", horse_records, horse_attempts, horse_orange, "总搜索数", "橙品数量", displayed=horse_displayed)
     st.divider()
-    _category_card("灵禽院", bird_records, bird_attempts, bird_orange, "总搜索数", displayed=bird_displayed)
+    _category_card("灵禽院", bird_records, bird_attempts, bird_orange, "总培养数", "橙品数量", displayed=bird_displayed)
 
     now = datetime.now()
     recent_columns = st.columns(3)
@@ -104,4 +113,4 @@ def render_dashboard() -> None:
         show_chart(bar(daily, "date", "attempt_count", "每日采集量", "category"), "daily")
         show_chart(line(daily, "date", "sample_growth", "累计样本增长", "category"), "growth")
     with right:
-        show_chart(line(daily, "date", "observed_probability", "红/橙观测概率趋势", "category"), "trend")
+        show_chart(line(daily, "date", "observed_probability", "目标品质观测概率趋势", "category"), "trend")

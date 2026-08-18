@@ -18,7 +18,7 @@ def render() -> None:
     display["观测率"] = display["rate"].map(lambda value: "No Data" if pd.isna(value) else f"{value:.3%}")
     display["95% Wilson CI"] = ["No Data" if pd.isna(low) else f"{low:.3%}–{high:.3%}" for low, high in zip(levels["ci_low"], levels["ci_high"])]
     st.dataframe(display[["level", "trials", "successes", "观测率", "95% Wilson CI", "sample_quality"]], hide_index=True, width="stretch")
-    show_chart(rate_with_ci_chart(levels, "level", "技能等级橙品率"), "skill-level-ci")
+    show_chart(rate_with_ci_chart(levels, "level", "技能等级红色率"), "skill-level-ci")
     table = comparison_table(pairwise_level_comparisons(grouped))
     if table.empty:
         st.info("当前数据不足以完成预设等级比较。")

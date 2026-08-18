@@ -468,7 +468,7 @@ The application must now support three top-level game categories:
 
 1. **官匠营** — material production
 2. **马厩** — selectable horse search
-3. **灵禽院** — random bird/spirit search
+3. **灵禽院** — random or targeted bird/spirit cultivation
 
 The existing nine materials remain under **官匠营**.
 
@@ -574,8 +574,9 @@ Bird types:
 
 Rules:
 
-- The player cannot choose the bird type.
-- Each search randomly produces one of the four types.
+- The player may use ordinary cultivation, where each result produces one of the four types.
+- The player may instead choose a specific bird type before targeted cultivation.
+- Random and targeted cultivation must be stored separately so targeted records do not enter the non-official equal-25% species test.
 - Default level is **10**.
 - The main target is **橙品** probability.
 - Record both resulting species and quality whenever practical.
