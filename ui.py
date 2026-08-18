@@ -19,6 +19,7 @@ from database.repository import (
     AnalysisRepository,
     ObservationRepository,
     ProbabilityRepository,
+    SimulationRepository,
     SettingsRepository,
 )
 from services.statistics import SufficiencyThresholds
@@ -67,30 +68,78 @@ def load_dashboard_data() -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def load_material_analysis(
-    material: str | None = None, level: int | None = None
+    material: str | None = None,
+    level: int | None = None,
+    start_date=None,
+    end_date=None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Load compact material group and daily aggregates from PostgreSQL."""
     prepare_database()
     with session_scope() as session:
         repository = AnalysisRepository(session)
         return (
-            repository.material_summary(material, level),
-            repository.material_daily(material, level),
+            repository.material_summary(material, level, start_date, end_date),
+            repository.material_daily(material, level, start_date, end_date),
         )
 
 
 def load_quality_analysis(
-    category_type: str, item: str | None = None, level: int | None = None
+    category_type: str,
+    item: str | None = None,
+    level: int | None = None,
+    start_date=None,
+    end_date=None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Load compact quality, item and session aggregates from PostgreSQL."""
     prepare_database()
     with session_scope() as session:
         repository = AnalysisRepository(session)
         return (
-            repository.quality_summary(category_type, item, level),
-            repository.quality_by_item(category_type, level),
-            repository.session_summary(category_type, item, level),
+            repository.quality_summary(
+                category_type, item, level, start_date, end_date
+            ),
+            repository.quality_by_item(
+                category_type, level, start_date, end_date
+            ),
+            repository.session_summary(
+                category_type, item, level, start_date, end_date
+            ),
         )
+
+
+def save_simulation_run(
+    category_type: str,
+    model_name: str,
+    probability: float,
+    trial_count: int,
+    simulation_count: int,
+    random_seed: int,
+    result: dict,
+    item_name: str | None = None,
+    level: int | None = None,
+) -> int:
+    """Persist one versioned simulation summary and return its ID."""
+    prepare_database()
+    with session_scope() as session:
+        run = SimulationRepository(session).add(
+            category_type,
+            model_name,
+            probability,
+            trial_count,
+            simulation_count,
+            random_seed,
+            result,
+            item_name,
+            level,
+        )
+        return run.id
+
+
+def load_simulation_history(limit: int = 20) -> pd.DataFrame:
+    """Load stored simulation metadata and versioned summaries."""
+    prepare_database()
+    with session_scope() as session:
+        return SimulationRepository(session).recent_dataframe(limit)
 
 
 def get_setting(key: str, fallback: str) -> str:

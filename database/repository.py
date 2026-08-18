@@ -487,7 +487,11 @@ class AnalysisRepository:
         return frame
 
     def material_summary(
-        self, material: str | None = None, level: int | None = None
+        self,
+        material: str | None = None,
+        level: int | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> pd.DataFrame:
         columns = ["item", "level", "records", "attempts", "orange"]
         statement = (
@@ -510,13 +514,21 @@ class AnalysisRepository:
             statement = statement.where(Item.name == material)
         if level is not None:
             statement = statement.where(Observation.level == level)
+        if start_date is not None:
+            statement = statement.where(Observation.observed_at >= start_date)
+        if end_date is not None:
+            statement = statement.where(Observation.observed_at <= end_date)
         rows = self.session.execute(
             statement.group_by(Item.name, Observation.level).order_by(Item.name, Observation.level)
         ).mappings()
         return self._frame(rows, columns)
 
     def material_daily(
-        self, material: str | None = None, level: int | None = None
+        self,
+        material: str | None = None,
+        level: int | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> pd.DataFrame:
         columns = ["date", "attempts", "orange"]
         statement = (
@@ -537,6 +549,10 @@ class AnalysisRepository:
             statement = statement.where(Item.name == material)
         if level is not None:
             statement = statement.where(Observation.level == level)
+        if start_date is not None:
+            statement = statement.where(Observation.observed_at >= start_date)
+        if end_date is not None:
+            statement = statement.where(Observation.observed_at <= end_date)
         rows = self.session.execute(
             statement.group_by(Observation.observed_at).order_by(Observation.observed_at)
         ).mappings()
@@ -546,7 +562,12 @@ class AnalysisRepository:
         return frame
 
     def quality_summary(
-        self, category_type: str, item: str | None = None, level: int | None = None
+        self,
+        category_type: str,
+        item: str | None = None,
+        level: int | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> pd.DataFrame:
         columns = [
             "records", "attempts", "green", "blue", "purple", "orange", "unaccounted"
@@ -572,11 +593,19 @@ class AnalysisRepository:
             statement = statement.where(Item.name == item)
         if level is not None:
             statement = statement.where(Observation.level == level)
+        if start_date is not None:
+            statement = statement.where(Observation.observed_at >= start_date)
+        if end_date is not None:
+            statement = statement.where(Observation.observed_at <= end_date)
         rows = self.session.execute(statement).mappings()
         return self._frame(rows, columns)
 
     def quality_by_item(
-        self, category_type: str, level: int | None = None
+        self,
+        category_type: str,
+        level: int | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> pd.DataFrame:
         columns = [
             "item", "records", "attempts", "green", "blue", "purple", "orange", "unaccounted"
@@ -601,13 +630,22 @@ class AnalysisRepository:
         )
         if level is not None:
             statement = statement.where(Observation.level == level)
+        if start_date is not None:
+            statement = statement.where(Observation.observed_at >= start_date)
+        if end_date is not None:
+            statement = statement.where(Observation.observed_at <= end_date)
         rows = self.session.execute(
             statement.group_by(Item.name).order_by(Item.name)
         ).mappings()
         return self._frame(rows, columns)
 
     def session_summary(
-        self, category_type: str, item: str | None = None, level: int | None = None
+        self,
+        category_type: str,
+        item: str | None = None,
+        level: int | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> pd.DataFrame:
         columns = ["session_id", "searches", "orange"]
         statement = (
@@ -627,6 +665,10 @@ class AnalysisRepository:
             statement = statement.where(Item.name == item)
         if level is not None:
             statement = statement.where(Observation.level == level)
+        if start_date is not None:
+            statement = statement.where(Observation.observed_at >= start_date)
+        if end_date is not None:
+            statement = statement.where(Observation.observed_at <= end_date)
         rows = self.session.execute(
             statement.group_by(Observation.session_id).order_by(Observation.session_id)
         ).mappings()
@@ -838,6 +880,48 @@ class SimulationRepository:
                 .limit(limit)
             )
         )
+
+    def recent_dataframe(self, limit: int = 20) -> pd.DataFrame:
+        """Return recent stored summaries without loading any raw simulations."""
+        rows = self.session.execute(
+            select(
+                SimulationRun.id,
+                SimulationRun.created_at,
+                Category.category_type,
+                Item.name.label("item"),
+                SimulationRun.level,
+                SimulationRun.model_name,
+                SimulationRun.probability,
+                SimulationRun.trial_count,
+                SimulationRun.simulation_runs,
+                SimulationRun.random_seed,
+                SimulationRun.result_json,
+            )
+            .join(Category, SimulationRun.category_id == Category.id)
+            .outerjoin(Item, SimulationRun.item_id == Item.id)
+            .order_by(SimulationRun.created_at.desc(), SimulationRun.id.desc())
+            .limit(limit)
+        ).mappings()
+        frame = pd.DataFrame(
+            rows,
+            columns=[
+                "id", "created_at", "category_type", "item", "level",
+                "model_name", "probability", "trial_count", "simulation_runs",
+                "random_seed", "result_json",
+            ],
+        )
+        if frame.empty:
+            frame["actual_result"] = pd.Series(dtype="object")
+            return frame
+
+        def actual_result(payload: dict[str, Any]) -> object:
+            if payload.get("actual_count") is not None:
+                return payload["actual_count"]
+            counts = payload.get("actual_counts")
+            return counts if counts is not None else "No actual data"
+
+        frame["actual_result"] = frame["result_json"].map(actual_result)
+        return frame
 
     def dataframe(self, limit: int = 50) -> pd.DataFrame:
         item_alias = Item.__table__.alias("simulation_item")
