@@ -296,5 +296,5 @@ def render() -> None:
     _manage_one_record(filtered)
 
 
-configure_page("数据管理", "🗃️")
+configure_page("数据管理")
 page_guard(render)

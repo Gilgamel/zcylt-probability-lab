@@ -27,5 +27,5 @@ def render() -> None:
         st.caption("同时展示原始 p 值与 Holm 校正 p 值；significant 依据校正值判断，α=0.05。")
 
 
-configure_page("技能等级比较", "📊")
+configure_page("技能等级比较")
 page_guard(render)

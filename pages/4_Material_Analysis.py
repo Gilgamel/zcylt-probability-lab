@@ -76,5 +76,5 @@ def render() -> None:
         st.caption("α=0.05；significant 使用 Holm 校正后的 p 值。稀疏样本使用 Fisher 精确检验，否则使用两比例 z 检验；结论是关联证据，不证明因果。")
 
 
-configure_page("官匠营分析", "💎")
+configure_page("官匠营分析")
 page_guard(render)

@@ -423,7 +423,7 @@ def _history() -> None:
 
 
 def render() -> None:
-    configure_page("Monte Carlo", "🎲")
+    configure_page("Monte Carlo")
     st.title("Monte Carlo 模拟实验室")
     st.caption("模型假设 → 生成独立数据集 → 与当前筛选观测比较 → 可选保存摘要")
     st.info(

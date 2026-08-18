@@ -96,5 +96,5 @@ def render() -> None:
     st.write("灵禽院：", {QUALITY_LABELS[key]: f"{value:.2%}" for key, value in bird.items()})
 
 
-configure_page("设置", "⚙️")
+configure_page("设置")
 page_guard(render)

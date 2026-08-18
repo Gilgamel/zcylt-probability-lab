@@ -256,5 +256,5 @@ def render() -> None:
     _saved_status()
 
 
-configure_page("数据录入", "✍️")
+configure_page("数据录入")
 page_guard(render)

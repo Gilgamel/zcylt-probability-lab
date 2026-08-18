@@ -66,7 +66,6 @@ ProbabilityLab/
 │   └── plotly_chart.py
 │
 ├── pages/
-│   ├── 1_Dashboard.py
 │   ├── 2_Data_Entry.py
 │   ├── 3_Data_Manager.py
 │   ├── 4_Material_Analysis.py
