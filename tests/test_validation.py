@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 from pydantic import ValidationError
 
-from config.domain import BIRD_RANDOM, HORSE_SEARCH, MATERIAL_PRODUCTION
+from config.domain import BIRD_RANDOM, BIRD_TARGETED, HORSE_SEARCH, MATERIAL_PRODUCTION
 from services.validation import (
     ObservationInput,
     ProductionInput,
@@ -140,6 +140,26 @@ def test_bird_session_keeps_eight_individual_results_under_one_session() -> None
         record.blue_count + record.purple_count + record.orange_count == 1
         for record in records
     )
+
+
+def test_targeted_bird_session_is_stored_separately_from_random_cultivation() -> None:
+    records = validate_bird_session(
+        level=10,
+        results=[("出云鹤", "BLUE"), ("出云鹤", "ORANGE")],
+        category_type=BIRD_TARGETED,
+    )
+    assert {record.category_type for record in records} == {BIRD_TARGETED}
+    assert {record.item for record in records} == {"出云鹤"}
+    assert len({record.session_id for record in records}) == 1
+
+
+def test_bird_session_rejects_non_bird_cultivation_mode() -> None:
+    with pytest.raises(ValueError, match="培养方式"):
+        validate_bird_session(
+            level=10,
+            results=[("铁羽雁", "BLUE")],
+            category_type=HORSE_SEARCH,
+        )
 
 
 @pytest.mark.parametrize(

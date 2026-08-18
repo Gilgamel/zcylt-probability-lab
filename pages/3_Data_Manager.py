@@ -7,6 +7,7 @@ import streamlit as st
 
 from config.domain import (
     BIRD_RANDOM,
+    BIRD_TARGETED,
     CATEGORIES,
     ITEMS_BY_CATEGORY,
     MATERIAL_PRODUCTION,
@@ -29,6 +30,7 @@ DISPLAY_COLUMNS = (
     "绿品",
     "蓝品",
     "紫品",
+    "红色",
     "橙品",
     "其他/未说明",
     "会话 ID",
@@ -49,7 +51,12 @@ def _display_frame(frame: pd.DataFrame) -> pd.DataFrame:
     displayed["绿品"] = frame["green_count"]
     displayed["蓝品"] = frame["blue_count"]
     displayed["紫品"] = frame["purple_count"]
-    displayed["橙品"] = frame["orange_count"]
+    displayed["红色"] = frame["orange_count"].where(
+        frame["category_type"] == MATERIAL_PRODUCTION
+    )
+    displayed["橙品"] = frame["orange_count"].where(
+        frame["category_type"] != MATERIAL_PRODUCTION
+    )
     displayed["其他/未说明"] = frame["unaccounted_count"]
     displayed["会话 ID"] = frame["session_id"].astype(str)
     displayed["备注"] = frame["remark"]
@@ -125,9 +132,9 @@ def _edit_fields(row: pd.Series) -> dict[str, object]:
             "生产数量", min_value=1, value=int(row["attempt_count"])
         )
         values["orange_count"] = st.number_input(
-            "红/橙数量", min_value=0, value=int(row["orange_count"])
+            "红色数量", min_value=0, value=int(row["orange_count"])
         )
-    elif category_type == BIRD_RANDOM:
+    elif category_type in {BIRD_RANDOM, BIRD_TARGETED}:
         values["attempt_count"] = 1
         qualities = ("BLUE", "PURPLE", "ORANGE")
         current = next(

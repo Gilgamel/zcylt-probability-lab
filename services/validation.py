@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from config.domain import (
     BIRD_RANDOM,
     BIRD_SPECIES,
+    BIRD_TARGETED,
     HORSE_BREEDS,
     HORSE_SEARCH,
     MATERIAL_PRODUCTION,
@@ -39,7 +40,7 @@ class ObservationInput(BaseModel):
     @field_validator("category_type")
     @classmethod
     def valid_category(cls, value: str) -> str:
-        if value not in {MATERIAL_PRODUCTION, HORSE_SEARCH, BIRD_RANDOM}:
+        if value not in {MATERIAL_PRODUCTION, HORSE_SEARCH, BIRD_RANDOM, BIRD_TARGETED}:
             raise ValueError("未知分类")
         return value
 
@@ -49,12 +50,13 @@ class ObservationInput(BaseModel):
             MATERIAL_PRODUCTION: MATERIALS,
             HORSE_SEARCH: HORSE_BREEDS,
             BIRD_RANDOM: BIRD_SPECIES,
+            BIRD_TARGETED: BIRD_SPECIES,
         }
         if self.item not in valid_items[self.category_type]:
             raise ValueError("项目不属于所选分类")
         if self.category_type == MATERIAL_PRODUCTION and self.level not in SKILL_LEVELS:
             raise ValueError("官匠营技能等级必须是 9、10、11 或 12")
-        if self.category_type in {HORSE_SEARCH, BIRD_RANDOM} and self.attempt_count > 8:
+        if self.category_type in {HORSE_SEARCH, BIRD_RANDOM, BIRD_TARGETED} and self.attempt_count > 8:
             raise ValueError("搜索会话最多包含 8 次")
         quality_total = (
             self.green_count + self.blue_count + self.purple_count
@@ -64,7 +66,7 @@ class ObservationInput(BaseModel):
             raise ValueError("品质数量合计不能大于尝试次数")
         if self.category_type == HORSE_SEARCH and quality_total != self.attempt_count:
             raise ValueError("搜索品质数量与搜索次数必须相等；未知结果请计入其他/未说明")
-        if self.category_type == BIRD_RANDOM:
+        if self.category_type in {BIRD_RANDOM, BIRD_TARGETED}:
             if self.attempt_count != 1:
                 raise ValueError("每条灵禽院原始观测必须且只能代表 1 次搜索")
             if self.green_count or self.unaccounted_count:
@@ -143,18 +145,21 @@ def validate_bird_session(
     remark: str = "",
     session_id: UUID | None = None,
     observed_at: DateTime | None = None,
+    category_type: str = BIRD_RANDOM,
 ) -> list[ObservationInput]:
     """Validate 1–8 灵禽院 results and preserve each as one raw observation."""
     normalized_results = list(results)
     if not 1 <= len(normalized_results) <= 8:
         raise ValueError("灵禽院每个搜索会话必须包含 1 到 8 次结果")
+    if category_type not in {BIRD_RANDOM, BIRD_TARGETED}:
+        raise ValueError("未知的灵禽院培养方式")
     shared_session_id = session_id or uuid4()
     records: list[ObservationInput] = []
     for species, quality in normalized_results:
         if quality not in BIRD_QUALITIES:
             raise ValueError("灵禽院品质必须是蓝、紫或橙")
         records.append(ObservationInput(
-            category_type=BIRD_RANDOM,
+            category_type=category_type,
             item=species,
             level=level,
             attempt_count=1,

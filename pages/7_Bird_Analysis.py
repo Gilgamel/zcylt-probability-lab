@@ -28,7 +28,10 @@ def _pairwise_species(frame: pd.DataFrame):
 
 def render() -> None:
     st.title("灵禽院统计分析")
-    st.caption("种类是搜索结果；四种各 25% 仅作为清楚标注的非官方检验假设。")
+    st.caption(
+        "本页当前分析普通培养（随机品种）；特定品种培养记录单独保存，"
+        "不会进入四种各 25% 的非官方检验假设。"
+    )
     level_choice = st.selectbox("等级", (10, "全部等级"))
     level = None if level_choice == "全部等级" else int(level_choice)
     summary, raw_species, sessions = load_quality_analysis(BIRD_RANDOM, None, level)
@@ -43,7 +46,7 @@ def render() -> None:
     cols[3].metric("95% Wilson CI", "No Data" if result.ci_low is None else f"{result.ci_low:.3%}–{result.ci_high:.3%}")
     cols[4].metric("样本质量", classify_sample_quality(result))
     if not total:
-        st.info("当前筛选条件下暂无有效灵禽院数据。No Data 不等于 0%。")
+        st.info("当前筛选条件下暂无有效的普通培养数据。No Data 不等于 0%。")
         return
     orange_test = calculate_binomial_test(orange, total, targets["ORANGE"])
     difference = calculate_probability_difference(result.observed_rate, targets["ORANGE"])

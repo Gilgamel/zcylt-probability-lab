@@ -65,8 +65,8 @@ MODEL_LABELS = {
     MATERIAL_USER_MODEL: "官匠营：用户指定理论概率（非官方概率）",
     MATERIAL_EMPIRICAL_MODEL: "官匠营：由当前筛选数据得到的经验概率（非官方概率）",
     HORSE_LITERAL_MODEL: "马厩：字面显示 41% / 50% / 7% / 1% + 未说明 1%",
-    BIRD_QUALITY_MODEL: "灵禽品质：79% / 20% / 1%",
-    BIRD_EQUAL_SPECIES_MODEL: "灵禽种类：各 25% 检验假设（非官方概率）",
+    BIRD_QUALITY_MODEL: "灵禽普通培养品质：79% / 20% / 1%",
+    BIRD_EQUAL_SPECIES_MODEL: "灵禽普通培养种类：各 25% 检验假设（非官方概率）",
 }
 def _actual_quality_counts(frame: pd.DataFrame, include_green: bool) -> tuple[int, dict[str, int]]:
     if frame.empty or int(frame.iloc[0]["records"]) == 0:
@@ -163,7 +163,12 @@ def _render_actual_summary(inputs: dict[str, Any]) -> None:
         probability = inputs["probabilities"]
         columns = st.columns(4)
         columns[0].metric("Actual sample size", f"{trials:,}")
-        columns[1].metric("实际橙品数", f"{int(actual):,}")
+        outcome_label = (
+            "实际红色数"
+            if inputs["category"] == MATERIAL_PRODUCTION
+            else "实际橙品数"
+        )
+        columns[1].metric(outcome_label, f"{int(actual):,}")
         columns[2].metric("Observed rate", f"{actual / trials:.3%}")
         columns[3].metric(
             "Target probability",
@@ -188,9 +193,12 @@ def _render_phase3_inference(inputs: dict[str, Any]) -> None:
             st.caption("尚未指定理论概率，因此没有 Phase 3 精确检验。")
             return
         test = calculate_binomial_test(int(actual), trials, probabilities)
+        outcome_name = (
+            "红色率" if inputs["category"] == MATERIAL_PRODUCTION else "橙品率"
+        )
         st.write(
             f"Exact binomial test：p={test.p_value:.6g}。"
-            + interpret_p_value(test.p_value, f"橙品率等于目标值 {probabilities:.3%}")
+            + interpret_p_value(test.p_value, f"{outcome_name}等于目标值 {probabilities:.3%}")
         )
         return
     if "ORANGE" in probabilities:
@@ -234,7 +242,7 @@ def _material_inputs(start: date, end: date) -> dict[str, Any]:
     )
     if source.startswith("Manual"):
         entered_probability = st.number_input(
-            "橙品理论概率 (%)", min_value=0.0, max_value=100.0,
+            "红色理论概率 (%)", min_value=0.0, max_value=100.0,
             value=None, step=0.01, placeholder="必须明确输入",
         )
         probability = None if entered_probability is None else entered_probability / 100
@@ -269,7 +277,7 @@ def _quality_inputs(system: str, start: date, end: date) -> dict[str, Any]:
         }
     level = st.selectbox("技能等级", SKILL_LEVELS)
     summary, by_item, _ = load_quality_analysis(BIRD_RANDOM, None, level, start, end)
-    if system == "灵禽品质":
+    if system == "灵禽普通培养品质":
         probabilities = get_displayed_probabilities(BIRD_RANDOM)
         actual_trials, actual = _actual_quality_counts(summary, include_green=False)
         return {
@@ -335,8 +343,13 @@ def _choose_actual_source(inputs: dict[str, Any]) -> dict[str, Any]:
         actual_trials = int(columns[0].number_input(
             "实际试验数", 1, MAX_TRIALS, max(1, inputs["actual_trials"] or 1_000), 1,
         ))
+        outcome_label = (
+            "实际红色数"
+            if inputs["category"] == MATERIAL_PRODUCTION
+            else "实际橙品数"
+        )
         actual_successes = int(columns[1].number_input(
-            "实际橙品数", 0, actual_trials, min(inputs["actual"] or 0, actual_trials), 1,
+            outcome_label, 0, actual_trials, min(inputs["actual"] or 0, actual_trials), 1,
         ))
         selected["actual_trials"] = actual_trials
         selected["actual"] = actual_successes
@@ -417,9 +430,12 @@ def render() -> None:
         "Phase 3 从实际观测执行统计推断；Phase 4 在选定概率模型下模拟许多假想数据集。"
         "p 值与 Monte Carlo 百分位会分别展示，不合并为“置信分数”。"
     )
-    system = st.selectbox("模型", ("官匠营橙品", "马厩品质", "灵禽品质", "灵禽种类等概率假设"))
+    system = st.selectbox(
+        "模型",
+        ("官匠营红色", "马厩品质", "灵禽普通培养品质", "灵禽普通培养种类等概率假设"),
+    )
     start, end = _date_controls()
-    inputs = _material_inputs(start, end) if system == "官匠营橙品" else _quality_inputs(system, start, end)
+    inputs = _material_inputs(start, end) if system == "官匠营红色" else _quality_inputs(system, start, end)
     inputs = _choose_actual_source(inputs)
     signature = _run_signature(inputs, start, end)
 

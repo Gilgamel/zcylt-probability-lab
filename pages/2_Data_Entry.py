@@ -5,6 +5,7 @@ import streamlit as st
 from config.domain import (
     BIRD_RANDOM,
     BIRD_SPECIES,
+    BIRD_TARGETED,
     CATEGORIES,
     HORSE_BREEDS,
     HORSE_PROBABILITY_WARNING,
@@ -73,14 +74,16 @@ def _material_entry() -> None:
         material = left.selectbox("材料", MATERIALS)
         skill = right.selectbox("技能等级", SKILL_LEVELS)
         quantity = left.number_input("生产数量", min_value=1, value=default_quantity, step=1)
-        orange = right.number_input("红/橙数量", min_value=0, value=0, step=1)
+        red_count = right.number_input("红色数量", min_value=0, value=0, step=1)
         remark = st.text_area("备注", max_chars=500, key="material-remark")
         submitted = st.form_submit_button("保存官匠营记录", type="primary", width="stretch")
     if submitted:
         try:
             record = validate_material_entry(
                 material=material, skill_level=skill, quantity=quantity,
-                orange_count=orange, remark=remark,
+                # The unified database column is named orange_count, but 官匠营
+                # calls this outcome 红色 in the game-facing UI.
+                orange_count=red_count, remark=remark,
             )
         except ValueError as exc:
             st.error(f"无法保存：{exc}")
@@ -122,8 +125,19 @@ def _horse_entry() -> None:
 
 
 def _bird_entry() -> None:
-    """Render individual species + quality results without preselecting a target."""
-    st.caption("灵禽种类是搜索结果，不是搜索前选择的目标。每次结果将保留为独立原始观测。")
+    """Render random or targeted cultivation while preserving mode semantics."""
+    cultivation_mode = st.radio(
+        "培养方式",
+        (BIRD_RANDOM, BIRD_TARGETED),
+        format_func=lambda value: "培养（随机品种）" if value == BIRD_RANDOM else "培养特定品种",
+        horizontal=True,
+    )
+    target_species = None
+    if cultivation_mode == BIRD_RANDOM:
+        st.caption("普通培养：每次录入实际出现的灵禽品种和品质。")
+    else:
+        target_species = st.selectbox("选择培养品种", BIRD_SPECIES)
+        st.caption("特定品种培养：品种在培养前确定，每次只需记录实际品质。")
     search_count = st.number_input(
         "本次记录搜索次数", min_value=1, max_value=8, value=8, step=1, key="bird-count"
     )
@@ -136,15 +150,24 @@ def _bird_entry() -> None:
         quality_options = ("BLUE", "PURPLE", "ORANGE")
         for index in range(int(search_count)):
             species_col, quality_col = st.columns(2)
-            species = species_col.selectbox(
-                f"搜索 {index + 1} · 种类结果",
-                BIRD_SPECIES,
-                index=None,
-                placeholder="选择本次实际结果",
-                key=f"bird-species-{index}",
-            )
+            if cultivation_mode == BIRD_RANDOM:
+                species = species_col.selectbox(
+                    f"培养 {index + 1} · 品种结果",
+                    BIRD_SPECIES,
+                    index=None,
+                    placeholder="选择本次实际结果",
+                    key=f"bird-species-{index}",
+                )
+            else:
+                species = target_species
+                species_col.text_input(
+                    f"培养 {index + 1} · 指定品种",
+                    value=target_species,
+                    disabled=True,
+                    key=f"bird-target-species-{index}",
+                )
             quality = quality_col.selectbox(
-                f"搜索 {index + 1} · 品质结果",
+                f"培养 {index + 1} · 品质结果",
                 quality_options,
                 index=None,
                 placeholder="选择本次实际品质",
@@ -156,13 +179,18 @@ def _bird_entry() -> None:
         submitted = st.form_submit_button("保存灵禽结果", type="primary", width="stretch")
     if submitted:
         try:
-            records = validate_bird_session(level=level, results=results, remark=remark)
+            records = validate_bird_session(
+                level=level,
+                results=results,
+                remark=remark,
+                category_type=cultivation_mode,
+            )
         except ValueError as exc:
             st.error(f"无法保存：{exc}")
         else:
             _save_many(records)
             st.success(
-                f"已保存 {len(records)} 次灵禽搜索结果。"
+                f"已保存 {len(records)} 次灵禽培养结果。"
                 f"会话：{str(records[0].session_id)[:8]}"
             )
 
@@ -178,18 +206,24 @@ def _saved_status() -> None:
     grouped = observations.groupby("category", as_index=False).agg(
         记录数=("id", "count"),
         尝试次数=("attempt_count", "sum"),
-        橙品数=("orange_count", "sum"),
+        目标品质数=("orange_count", "sum"),
     )
     st.dataframe(grouped, hide_index=True, width="stretch")
     recent = observations.head(10).copy()
     recent["日期"] = recent["observed_at"].dt.strftime("%Y-%m-%d")
     recent["会话"] = recent["session_id"].astype(str)
+    recent["红色"] = recent["orange_count"].where(
+        recent["category_type"] == MATERIAL_PRODUCTION
+    )
+    recent["橙品"] = recent["orange_count"].where(
+        recent["category_type"] != MATERIAL_PRODUCTION
+    )
     st.caption("最近保存的 10 条原始记录")
     st.dataframe(
-        recent[["日期", "category", "item", "level", "attempt_count", "orange_count", "会话", "remark"]]
+        recent[["日期", "category", "item", "level", "attempt_count", "红色", "橙品", "会话", "remark"]]
         .rename(columns={
             "category": "分类", "item": "项目/结果", "level": "等级",
-            "attempt_count": "尝试次数", "orange_count": "橙品", "remark": "备注",
+            "attempt_count": "尝试次数", "remark": "备注",
         }),
         hide_index=True,
         width="stretch",

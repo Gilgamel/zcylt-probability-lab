@@ -31,8 +31,8 @@ def render() -> None:
         st.info("当前筛选条件下暂无有效数据。No Data 表示尚未测量，不等于 0%。")
     metrics = st.columns(5)
     metrics[0].metric("总生产量", overall.trials)
-    metrics[1].metric("橙品数量", overall.successes)
-    metrics[2].metric("观测橙品率", _format_rate(overall.observed_rate))
+    metrics[1].metric("红色数量", overall.successes)
+    metrics[2].metric("观测红色率", _format_rate(overall.observed_rate))
     metrics[3].metric("95% Wilson CI", "No Data" if overall.ci_low is None else f"{overall.ci_low:.3%}–{overall.ci_high:.3%}")
     metrics[4].metric("样本质量", classify_sample_quality(overall))
 
@@ -47,7 +47,7 @@ def render() -> None:
             st.caption("这是基于指定概率与正态近似的规划估算，不保证最终 Wilson 区间达到目标宽度。")
 
     cumulative = cumulative_daily(daily)
-    show_chart(cumulative_rate_chart(cumulative, "官匠营累计橙品率"), "material-cumulative")
+    show_chart(cumulative_rate_chart(cumulative, "官匠营累计红色率"), "material-cumulative")
     if not cumulative.empty:
         daily_display = cumulative[["date", "attempts", "orange", "daily_rate", "rate"]].copy()
         daily_display["daily_rate"] = daily_display["daily_rate"].map(lambda value: f"{value:.3%}")
@@ -60,7 +60,7 @@ def render() -> None:
     display["rate"] = display["rate"].map(_format_rate)
     display["95% Wilson CI"] = ["No Data" if pd.isna(low) else f"{low:.3%}–{high:.3%}" for low, high in zip(levels["ci_low"], levels["ci_high"])]
     st.dataframe(display[["level", "trials", "successes", "rate", "95% Wilson CI", "sample_quality"]], hide_index=True, width="stretch")
-    show_chart(rate_with_ci_chart(levels, "level", "技能等级橙品率与 95% Wilson CI"), "material-level-ci")
+    show_chart(rate_with_ci_chart(levels, "level", "技能等级红色率与 95% Wilson CI"), "material-level-ci")
 
     comparisons = comparison_table(pairwise_level_comparisons(grouped))
     st.subheader("预设等级比较（Holm 多重校正）")

@@ -10,7 +10,7 @@ import pandas as pd
 from sqlalchemy import and_, delete, func, or_, select, text
 from sqlalchemy.orm import Session
 
-from config.domain import BIRD_RANDOM, HORSE_SEARCH, MATERIAL_PRODUCTION
+from config.domain import BIRD_RANDOM, BIRD_TARGETED, HORSE_SEARCH, MATERIAL_PRODUCTION
 from database.models import (
     Category,
     Item,
@@ -418,6 +418,13 @@ class AnalysisRepository:
                 quality_total == Observation.attempt_count,
             ),
             BIRD_RANDOM: and_(
+                Observation.attempt_count == 1,
+                Observation.green_count == 0,
+                Observation.unaccounted_count == 0,
+                Observation.blue_count + Observation.purple_count
+                + Observation.orange_count == 1,
+            ),
+            BIRD_TARGETED: and_(
                 Observation.attempt_count == 1,
                 Observation.green_count == 0,
                 Observation.unaccounted_count == 0,
