@@ -21,6 +21,17 @@ def render() -> None:
             "官匠营默认生产数量", 1,
             value=int(get_setting("default_material_quantity", "18"))
         )
+        material_levels = (9, 10, 11, 12)
+        current_material_level = int(get_setting("default_material_level", "12"))
+        material_level = st.selectbox(
+            "官匠营默认技能等级",
+            material_levels,
+            index=(
+                material_levels.index(current_material_level)
+                if current_material_level in material_levels
+                else material_levels.index(12)
+            ),
+        )
         iterations = st.number_input(
             "默认模拟次数", 100, 2_000_000,
             int(get_setting("default_monte_carlo_iterations", "100000")), 1000,
@@ -62,6 +73,7 @@ def render() -> None:
             repository = SettingsRepository(session)
             values = {
                 "default_material_quantity": quantity,
+                "default_material_level": material_level,
                 "default_monte_carlo_iterations": iterations,
                 "default_random_seed": random_seed,
                 "theme": theme,

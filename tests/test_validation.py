@@ -4,7 +4,13 @@ import pandas as pd
 import pytest
 from pydantic import ValidationError
 
-from config.domain import BIRD_RANDOM, BIRD_TARGETED, HORSE_SEARCH, MATERIAL_PRODUCTION
+from config.domain import (
+    BIRD_RANDOM,
+    BIRD_TARGETED,
+    DEFAULTS,
+    HORSE_SEARCH,
+    MATERIAL_PRODUCTION,
+)
 from services.validation import (
     ObservationInput,
     ProductionInput,
@@ -19,6 +25,10 @@ from services.validation import (
 def test_rejects_red_above_total() -> None:
     with pytest.raises(ValidationError):
         ProductionInput(material="玉料", skill_level=9, quantity=18, red_quantity=19)
+
+
+def test_default_material_level_is_twelve() -> None:
+    assert DEFAULTS["default_material_level"] == "12"
 
 
 @pytest.mark.parametrize(

@@ -16,11 +16,13 @@ from config.domain import (
 from database.db import session_scope
 from database.repository import ObservationRepository
 from services.export import observation_csv_name, observations_csv_bytes
+from services.security import delete_password_is_configured, verify_delete_password
 from services.validation import ObservationInput
 from ui import configure_page, load_observations, page_guard
 
 
 DISPLAY_COLUMNS = (
+    "记录 ID",
     "日期",
     "时间",
     "分类",
@@ -41,6 +43,7 @@ DISPLAY_COLUMNS = (
 def _display_frame(frame: pd.DataFrame) -> pd.DataFrame:
     """Format the required manager columns without changing raw values."""
     displayed = pd.DataFrame(index=frame.index)
+    displayed["记录 ID"] = frame["id"].astype(int)
     displayed["日期"] = pd.to_datetime(frame["observed_at"]).dt.strftime("%Y-%m-%d")
     created = pd.to_datetime(frame["created_at"], errors="coerce")
     displayed["时间"] = created.dt.strftime("%H:%M:%S").fillna("")
@@ -65,7 +68,7 @@ def _display_frame(frame: pd.DataFrame) -> pd.DataFrame:
 
 def _filter_records(frame: pd.DataFrame) -> pd.DataFrame:
     """Render filters and return the current result set."""
-    query = st.text_input("搜索项目、备注或会话 ID")
+    query = st.text_input("搜索记录 ID、项目、备注或会话 ID")
     category_names = st.multiselect("分类筛选", tuple(CATEGORIES.values()))
     item_options = sorted(frame["item"].dropna().unique().tolist()) if not frame.empty else []
     selected_items = st.multiselect("项目筛选", item_options)
@@ -88,9 +91,11 @@ def _filter_records(frame: pd.DataFrame) -> pd.DataFrame:
 
     filtered = frame.copy()
     if query and not filtered.empty:
+        record_id_text = filtered["id"].astype(str)
         session_text = filtered["session_id"].astype(str)
         mask = (
-            filtered["item"].str.contains(query, case=False, na=False)
+            record_id_text.str.contains(query, case=False, na=False)
+            | filtered["item"].str.contains(query, case=False, na=False)
             | filtered["remark"].str.contains(query, case=False, na=False)
             | session_text.str.contains(query, case=False, na=False)
         )
@@ -167,12 +172,33 @@ def _edit_fields(row: pd.Series) -> dict[str, object]:
     return values
 
 
+def _record_option_label(row: pd.Series) -> str:
+    """Build a compact, human-readable selector label for one observation."""
+    observed_date = pd.to_datetime(row["observed_at"]).strftime("%Y-%m-%d")
+    remark = " ".join(str(row.get("remark") or "").split())
+    if len(remark) > 24:
+        remark = remark[:24] + "…"
+    remark_part = f"｜备注：{remark}" if remark else ""
+    return (
+        f"ID {int(row['id'])}｜{observed_date}｜{row['category']}｜{row['item']}｜"
+        f"等级 {int(row['level'])}｜数量 {int(row['attempt_count'])}{remark_part}"
+    )
+
+
 def _manage_one_record(filtered: pd.DataFrame) -> None:
     """Edit or explicitly confirm deletion of one filtered record."""
     if filtered.empty:
         return
     record_ids = filtered["id"].astype(int).tolist()
-    record_id = st.selectbox("选择记录 ID", record_ids)
+    option_labels = {
+        int(row["id"]): _record_option_label(row)
+        for _, row in filtered.iterrows()
+    }
+    record_id = st.selectbox(
+        "选择要编辑或删除的记录",
+        record_ids,
+        format_func=lambda value: option_labels[int(value)],
+    )
     row = filtered.loc[filtered["id"] == record_id].iloc[0]
     with st.expander("编辑所选记录"):
         st.caption(
@@ -206,15 +232,36 @@ def _manage_one_record(filtered: pd.DataFrame) -> None:
                 st.success("修改已保存；记录 ID 与会话 ID 保持不变。")
                 st.rerun()
 
+    st.subheader("删除所选记录")
+    password_configured = delete_password_is_configured()
+    if not password_configured:
+        st.warning("删除功能尚未启用：请在 Streamlit Secrets 中配置 DELETE_PASSWORD。")
+    delete_password = st.text_input(
+        "删除密码",
+        type="password",
+        disabled=not password_configured,
+        key=f"delete-password-{int(record_id)}",
+    )
     confirm_delete = st.checkbox(
         f"我确认删除记录 ID {int(record_id)}；此操作不可撤销",
+        disabled=not password_configured,
         key=f"confirm-delete-{int(record_id)}",
     )
-    if st.button("删除所选记录", disabled=not confirm_delete):
-        with session_scope() as session:
-            ObservationRepository(session).delete(int(record_id))
-        st.success("记录已删除。")
-        st.rerun()
+    if st.button(
+        "删除所选记录",
+        disabled=not (password_configured and confirm_delete),
+        type="primary",
+    ):
+        if not verify_delete_password(delete_password):
+            st.error("删除密码错误，记录未删除。")
+        else:
+            with session_scope() as session:
+                deleted = ObservationRepository(session).delete(int(record_id))
+            if deleted:
+                st.success("记录已删除。")
+                st.rerun()
+            else:
+                st.error("记录不存在或已被删除。")
 
 
 def render() -> None:

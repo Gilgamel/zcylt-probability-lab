@@ -120,6 +120,7 @@ def test_reference_seed_is_idempotent_and_exact(postgres_factory) -> None:
         assert bird_sum == pytest.approx(1.0)
         expected = {
             "default_material_quantity": "18",
+            "default_material_level": "12",
             "default_horse_level": "10",
             "default_bird_level": "10",
             "default_monte_carlo_iterations": "100000",
