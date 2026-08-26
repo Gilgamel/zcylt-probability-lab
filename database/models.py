@@ -25,6 +25,7 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database.db import Base
+from config.timezone import application_today
 
 
 class Category(Base):
@@ -78,7 +79,7 @@ class Observation(Base):
     session_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True), default=uuid4, nullable=False, index=True
     )
-    observed_at: Mapped[date] = mapped_column(Date, default=date.today, index=True)
+    observed_at: Mapped[date] = mapped_column(Date, default=application_today, index=True)
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), index=True)
     item_id: Mapped[int] = mapped_column(ForeignKey("items.id"), index=True)
     level: Mapped[int] = mapped_column(Integer, index=True)

@@ -17,6 +17,7 @@ from config.domain import (
     MATERIALS,
     SKILL_LEVELS,
 )
+from config.timezone import application_now
 
 
 class ObservationInput(BaseModel):
@@ -34,7 +35,7 @@ class ObservationInput(BaseModel):
     orange_count: int = Field(default=0, ge=0)
     unaccounted_count: int = Field(default=0, ge=0)
     session_id: UUID = Field(default_factory=uuid4)
-    observed_at: DateTime = Field(default_factory=DateTime.now)
+    observed_at: DateTime = Field(default_factory=application_now)
     remark: str = ""
 
     @field_validator("category_type")
@@ -230,7 +231,7 @@ class ProductionInput(BaseModel):
     skill_level: int
     quantity: int = Field(gt=0)
     red_quantity: int = Field(ge=0)
-    datetime: DateTime = Field(default_factory=DateTime.now)
+    datetime: DateTime = Field(default_factory=application_now)
     remark: str = ""
 
     @model_validator(mode="after")

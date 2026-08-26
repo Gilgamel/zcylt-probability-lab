@@ -1,5 +1,7 @@
 """Category-specific fast entry backed by the unified Observation table."""
 
+from datetime import date, datetime, time
+
 import streamlit as st
 
 from config.domain import (
@@ -13,6 +15,7 @@ from config.domain import (
     MATERIALS,
     SKILL_LEVELS,
 )
+from config.timezone import APPLICATION_TIMEZONE_NAME, application_today
 from database.db import session_scope
 from database.repository import ObservationRepository
 from services.validation import (
@@ -64,7 +67,7 @@ def _save_many(records: list[ObservationInput]) -> None:
             )
 
 
-def _material_entry() -> None:
+def _material_entry(observed_date: date) -> None:
     """Render repeated-batch material entry."""
     default_quantity = int(get_setting("default_material_quantity", "18"))
     default_level = int(get_setting("default_material_level", "12"))
@@ -91,6 +94,7 @@ def _material_entry() -> None:
                 # The unified database column is named orange_count, but 官匠营
                 # calls this outcome 红色 in the game-facing UI.
                 orange_count=red_count, remark=remark,
+                observed_at=datetime.combine(observed_date, time.min),
             )
         except ValueError as exc:
             st.error(f"无法保存：{exc}")
@@ -99,7 +103,7 @@ def _material_entry() -> None:
             st.success(f"官匠营记录已保存并累计。会话：{str(record.session_id)[:8]}")
 
 
-def _horse_entry() -> None:
+def _horse_entry(observed_date: date) -> None:
     """Render full horse-search session entry."""
     st.warning(HORSE_PROBABILITY_WARNING)
     with st.form("horse-entry", clear_on_submit=True):
@@ -123,6 +127,7 @@ def _horse_entry() -> None:
                 horse=horse, level=level, search_count=searches,
                 green_count=green, blue_count=blue, purple_count=purple,
                 orange_count=orange, unaccounted_count=other, remark=remark,
+                observed_at=datetime.combine(observed_date, time.min),
             )
         except ValueError as exc:
             st.error(f"无法保存：{exc}")
@@ -131,7 +136,7 @@ def _horse_entry() -> None:
             st.success(f"马厩完整会话已保存并累计。会话：{str(record.session_id)[:8]}")
 
 
-def _bird_entry() -> None:
+def _bird_entry(observed_date: date) -> None:
     """Render compact random-cultivation counts by species and quality."""
     st.caption(
         "灵禽院仅记录随机培养。请填写各品种对应的蓝、紫、橙数量；"
@@ -175,6 +180,7 @@ def _bird_entry() -> None:
                 level=level,
                 counts=counts,
                 remark=remark,
+                observed_at=datetime.combine(observed_date, time.min),
             )
         except ValueError as exc:
             st.error(f"无法保存：{exc}")
@@ -230,12 +236,17 @@ def render() -> None:
         (MATERIAL_PRODUCTION, HORSE_SEARCH, BIRD_RANDOM),
         format_func=lambda value: CATEGORIES[value],
     )
+    observed_date = st.date_input(
+        "记录日期",
+        value=application_today(),
+        help=f"只保存日期，不保存录入时间；默认按 {APPLICATION_TIMEZONE_NAME} 计算。",
+    )
     if selected_category == MATERIAL_PRODUCTION:
-        _material_entry()
+        _material_entry(observed_date)
     elif selected_category == HORSE_SEARCH:
-        _horse_entry()
+        _horse_entry(observed_date)
     else:
-        _bird_entry()
+        _bird_entry(observed_date)
     _saved_status()
 
 

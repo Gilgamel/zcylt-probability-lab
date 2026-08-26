@@ -25,6 +25,7 @@ from config.domain import (
     QUALITY_LABELS,
     SKILL_LEVELS,
 )
+from config.timezone import application_today
 from services.monte_carlo import (
     BIRD_EQUAL_SPECIES_MODEL,
     BIRD_QUALITY_MODEL,
@@ -83,7 +84,7 @@ def _actual_quality_counts(frame: pd.DataFrame, include_green: bool) -> tuple[in
 
 
 def _date_controls() -> tuple[date, date]:
-    today = date.today()
+    today = application_today()
     columns = st.columns(2)
     start = columns[0].date_input("开始日期", value=date(2020, 1, 1))
     end = columns[1].date_input("结束日期", value=today)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from datetime import date, timedelta
 
 import pandas as pd
 
@@ -20,6 +21,35 @@ QUALITY_LABELS = {
     "green": "绿品", "blue": "蓝品", "purple": "紫品", "orange": "橙品",
     "unaccounted": "其他 / 未说明",
 }
+
+
+def recent_attempt_counts(
+    frame: pd.DataFrame,
+    today: date,
+) -> tuple[int, int, int, pd.DataFrame]:
+    """Count attempts in Toronto-calendar windows and return today's rows."""
+    if frame.empty:
+        return 0, 0, 0, frame.copy()
+    dated = frame.copy()
+    dated["calendar_date"] = pd.to_datetime(
+        dated["date"], errors="coerce"
+    ).dt.date
+    dated = dated[dated["calendar_date"].notna()]
+    today_rows = dated[dated["calendar_date"] == today]
+    week_rows = dated[
+        (dated["calendar_date"] >= today - timedelta(days=6))
+        & (dated["calendar_date"] <= today)
+    ]
+    month_rows = dated[
+        (dated["calendar_date"] >= today - timedelta(days=29))
+        & (dated["calendar_date"] <= today)
+    ]
+    return (
+        int(today_rows["attempt_count"].sum()),
+        int(week_rows["attempt_count"].sum()),
+        int(month_rows["attempt_count"].sum()),
+        today_rows,
+    )
 
 
 def aggregate_proportion(frame: pd.DataFrame, success_column: str = "orange", trial_column: str = "attempts"):

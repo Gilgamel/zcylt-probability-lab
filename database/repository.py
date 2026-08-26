@@ -12,6 +12,7 @@ from sqlalchemy import and_, delete, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from config.domain import BIRD_RANDOM, BIRD_TARGETED, HORSE_SEARCH, MATERIAL_PRODUCTION
+from config.timezone import application_today
 from database.models import (
     Category,
     Item,
@@ -155,7 +156,7 @@ class ObservationRepository:
     @staticmethod
     def _as_date(value: date | datetime | None) -> date:
         if value is None:
-            return date.today()
+            return application_today()
         return value.date() if isinstance(value, datetime) else value
 
     def add(

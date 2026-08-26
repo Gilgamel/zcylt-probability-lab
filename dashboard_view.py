@@ -1,13 +1,12 @@
 """Unified dashboard for material, horse, and bird observations."""
 
-from datetime import datetime, timedelta
-
 import pandas as pd
 import streamlit as st
 
 from charts.plotly_chart import bar, faceted_line, line
 from config.domain import BIRD_RANDOM, BIRD_TARGETED, HORSE_SEARCH, MATERIAL_PRODUCTION
-from services.analysis import dashboard_daily_metrics
+from config.timezone import APPLICATION_TIMEZONE_NAME, application_today
+from services.analysis import dashboard_daily_metrics, recent_attempt_counts
 from services.statistics import calculate_proportion, classify_sample_quality
 from ui import (
     get_displayed_probabilities,
@@ -88,35 +87,38 @@ def render_dashboard() -> None:
     st.divider()
     _category_card("灵禽院", bird_records, bird_attempts, bird_orange, "总培养数", "橙品数量", displayed=bird_displayed)
 
-    today = datetime.now().date()
-    observed_dates = daily["date"].dt.date
+    today = application_today()
     recent_columns = st.columns(3)
-    today_count = int(
-        daily[observed_dates == today]["attempt_count"].sum()
-    )
-    week_count = int(
-        daily[
-            (observed_dates >= today - timedelta(days=6))
-            & (observed_dates <= today)
-        ]["attempt_count"].sum()
-    )
-    month_count = int(
-        daily[
-            (observed_dates >= today - timedelta(days=29))
-            & (observed_dates <= today)
-        ]["attempt_count"].sum()
+    today_count, week_count, month_count, today_rows = recent_attempt_counts(
+        daily, today
     )
     metric_help = (
         "所有分类的实际样本次数合计，不是数据库记录条数。"
         "官匠营按生产数量、马厩按搜索次数、灵禽院按培养次数计算。"
     )
-    recent_columns[0].metric("今日样本次数", today_count, help=metric_help)
+    recent_columns[0].metric(
+        f"今日样本次数（{today:%m-%d}）", today_count, help=metric_help
+    )
     recent_columns[1].metric("近 7 日样本次数", week_count, help=metric_help)
     recent_columns[2].metric("近 30 日样本次数", month_count, help=metric_help)
     st.caption(
         "以上均为全部分类的实际尝试次数；近 7 日和近 30 日均包含今天，"
         "三个时间范围相互包含，不是新增量，也不是观测记录条数。"
+        f"“今天”按 {APPLICATION_TIMEZONE_NAME} 日历日期计算。"
     )
+    if today_rows.empty:
+        st.caption(f"{today:%Y-%m-%d} 暂无有效样本。")
+    else:
+        breakdown = (
+            today_rows.groupby("category", as_index=False)["attempt_count"]
+            .sum()
+            .sort_values("category")
+        )
+        detail = "；".join(
+            f"{row.category} {int(row.attempt_count)}"
+            for row in breakdown.itertuples(index=False)
+        )
+        st.caption(f"{today:%Y-%m-%d} 分类明细：{detail}。")
 
     daily = dashboard_daily_metrics(daily)
     left, right = st.columns(2)

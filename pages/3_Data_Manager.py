@@ -1,6 +1,6 @@
 """Search, edit, delete, and export unified raw observations."""
 
-from datetime import date, datetime, time
+from datetime import datetime, time
 
 import pandas as pd
 import streamlit as st
@@ -12,6 +12,7 @@ from config.domain import (
     ITEMS_BY_CATEGORY,
     MATERIAL_PRODUCTION,
 )
+from config.timezone import application_today
 from database.db import session_scope
 from database.repository import ObservationRepository
 from services.export import observation_csv_name, observations_csv_bytes
@@ -84,7 +85,7 @@ def _filter_records(frame: pd.DataFrame) -> pd.DataFrame:
     use_date_filter = st.checkbox("启用日期范围筛选")
     selected_dates = st.date_input(
         "日期范围",
-        value=(date.today().replace(day=1), date.today()),
+        value=(application_today().replace(day=1), application_today()),
         disabled=not use_date_filter,
     )
 
