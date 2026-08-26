@@ -24,6 +24,33 @@ def line(frame: pd.DataFrame, x: str, y: str, title: str, color: str | None = No
     return px.line(frame, x=x, y=y, color=color, title=title, markers=True)
 
 
+def faceted_line(
+    frame: pd.DataFrame,
+    x: str,
+    y: str,
+    title: str,
+    facet: str,
+) -> go.Figure:
+    """Render one aligned panel per category so equal series cannot overlap."""
+    if frame.empty:
+        return empty_chart()
+    figure = px.line(
+        frame,
+        x=x,
+        y=y,
+        facet_col=facet,
+        facet_col_wrap=3,
+        title=title,
+        markers=True,
+        labels={x: "日期", y: "累计尝试次数", facet: "分类"},
+    )
+    figure.for_each_annotation(
+        lambda annotation: annotation.update(text=annotation.text.split("=")[-1])
+    )
+    figure.update_layout(showlegend=False, height=430)
+    return figure
+
+
 def histogram(values: object, title: str, x_label: str = "红色数量") -> go.Figure:
     return px.histogram(x=values, title=title, labels={"x": x_label, "y": "频数"})
 

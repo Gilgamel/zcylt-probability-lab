@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import streamlit as st
 
-from charts.plotly_chart import bar, line
+from charts.plotly_chart import bar, faceted_line, line
 from config.domain import BIRD_RANDOM, BIRD_TARGETED, HORSE_SEARCH, MATERIAL_PRODUCTION
 from services.analysis import dashboard_daily_metrics
 from services.statistics import calculate_proportion, classify_sample_quality
@@ -122,10 +122,19 @@ def render_dashboard() -> None:
     left, right = st.columns(2)
     with left:
         show_chart(bar(daily, "date", "attempt_count", "每日采集量", "category"), "daily")
-        show_chart(
-            line(daily, "date", "sample_growth", "各分类累计尝试次数", "category"),
-            "growth",
-        )
-        st.caption("每条线分别累计该分类的实际尝试次数；无新增数据的日期保持不变。")
     with right:
         show_chart(line(daily, "date", "observed_probability", "目标品质观测概率趋势", "category"), "trend")
+    show_chart(
+        faceted_line(
+            daily,
+            "date",
+            "sample_growth",
+            "各分类累计尝试次数",
+            "category",
+        ),
+        "growth",
+    )
+    st.caption(
+        "每个分类独立成图并使用相同纵轴尺度；无新增数据的日期保持不变。"
+        "这样数值完全相同的分类也不会互相遮挡。"
+    )
