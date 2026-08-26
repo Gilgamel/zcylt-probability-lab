@@ -88,29 +88,44 @@ def render_dashboard() -> None:
     st.divider()
     _category_card("灵禽院", bird_records, bird_attempts, bird_orange, "总培养数", "橙品数量", displayed=bird_displayed)
 
-    now = datetime.now()
+    today = datetime.now().date()
+    observed_dates = daily["date"].dt.date
     recent_columns = st.columns(3)
     today_count = int(
-        daily[daily["date"].dt.date == now.date()]["attempt_count"].sum()
+        daily[observed_dates == today]["attempt_count"].sum()
     )
     week_count = int(
         daily[
-            daily["date"].dt.date >= (now - timedelta(days=7)).date()
+            (observed_dates >= today - timedelta(days=6))
+            & (observed_dates <= today)
         ]["attempt_count"].sum()
     )
     month_count = int(
         daily[
-            daily["date"].dt.date >= (now - timedelta(days=30)).date()
+            (observed_dates >= today - timedelta(days=29))
+            & (observed_dates <= today)
         ]["attempt_count"].sum()
     )
-    recent_columns[0].metric("今日尝试", today_count)
-    recent_columns[1].metric("近 7 天尝试", week_count)
-    recent_columns[2].metric("近 30 天尝试", month_count)
+    metric_help = (
+        "所有分类的实际样本次数合计，不是数据库记录条数。"
+        "官匠营按生产数量、马厩按搜索次数、灵禽院按培养次数计算。"
+    )
+    recent_columns[0].metric("今日样本次数", today_count, help=metric_help)
+    recent_columns[1].metric("近 7 日样本次数", week_count, help=metric_help)
+    recent_columns[2].metric("近 30 日样本次数", month_count, help=metric_help)
+    st.caption(
+        "以上均为全部分类的实际尝试次数；近 7 日和近 30 日均包含今天，"
+        "三个时间范围相互包含，不是新增量，也不是观测记录条数。"
+    )
 
     daily = dashboard_daily_metrics(daily)
     left, right = st.columns(2)
     with left:
         show_chart(bar(daily, "date", "attempt_count", "每日采集量", "category"), "daily")
-        show_chart(line(daily, "date", "sample_growth", "累计样本增长", "category"), "growth")
+        show_chart(
+            line(daily, "date", "sample_growth", "各分类累计尝试次数", "category"),
+            "growth",
+        )
+        st.caption("每条线分别累计该分类的实际尝试次数；无新增数据的日期保持不变。")
     with right:
         show_chart(line(daily, "date", "observed_probability", "目标品质观测概率趋势", "category"), "trend")

@@ -43,12 +43,16 @@ def test_cumulative_daily_uses_weighted_raw_counts() -> None:
 
 def test_dashboard_metrics_are_grouped_by_category() -> None:
     frame = pd.DataFrame([
-        {"date": 1, "category": "A", "category_type": "A", "attempt_count": 10, "orange_count": 1},
-        {"date": 1, "category": "B", "category_type": "B", "attempt_count": 5, "orange_count": 1},
-        {"date": 2, "category": "A", "category_type": "A", "attempt_count": 20, "orange_count": 1},
+        {"date": "2026-01-01", "category": "A", "category_type": "A", "attempt_count": 10, "orange_count": 1},
+        {"date": "2026-01-01", "category": "B", "category_type": "B", "attempt_count": 5, "orange_count": 1},
+        {"date": "2026-01-02", "category": "A", "category_type": "A", "attempt_count": 20, "orange_count": 1},
     ])
     result = dashboard_daily_metrics(frame)
-    assert result["sample_growth"].tolist() == [10, 5, 30]
+    assert result["sample_growth"].tolist() == [10, 5, 30, 5]
+    category_b = result[result["category"] == "B"]
+    assert category_b["attempt_count"].tolist() == [5, 0]
+    assert category_b["sample_growth"].tolist() == [5, 5]
+    assert pd.isna(category_b.iloc[-1]["observed_probability"])
 
 
 def test_level_comparisons_only_use_available_pairs() -> None:

@@ -92,14 +92,36 @@ def cumulative_daily(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def dashboard_daily_metrics(frame: pd.DataFrame) -> pd.DataFrame:
-    """Add display metrics to category/day aggregates outside the UI layer."""
+    """Add daily rates and a complete cumulative series for every category."""
     columns = list(frame.columns) + ["observed_probability", "sample_growth"]
     if frame.empty:
         return pd.DataFrame(columns=columns)
     result = frame.copy()
-    result["observed_probability"] = result["orange_count"] / result["attempt_count"]
-    result["sample_growth"] = result.groupby("category")["attempt_count"].cumsum()
-    return result
+    result["date"] = pd.to_datetime(result["date"]).dt.normalize()
+    all_dates = pd.date_range(result["date"].min(), result["date"].max(), freq="D")
+    completed: list[pd.DataFrame] = []
+    for (category, category_type), group in result.groupby(
+        ["category", "category_type"], sort=False
+    ):
+        category_daily = (
+            group.set_index("date")[["attempt_count", "orange_count"]]
+            .reindex(all_dates, fill_value=0)
+            .rename_axis("date")
+            .reset_index()
+        )
+        category_daily["category"] = category
+        category_daily["category_type"] = category_type
+        category_daily["observed_probability"] = (
+            category_daily["orange_count"] / category_daily["attempt_count"]
+        ).where(category_daily["attempt_count"] > 0)
+        category_daily["sample_growth"] = category_daily["attempt_count"].cumsum()
+        completed.append(category_daily)
+    return (
+        pd.concat(completed, ignore_index=True)
+        .sort_values(["date", "category"], kind="stable")
+        .loc[:, columns]
+        .reset_index(drop=True)
+    )
 
 
 def pairwise_level_comparisons(
