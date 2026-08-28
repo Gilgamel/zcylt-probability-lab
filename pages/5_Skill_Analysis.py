@@ -41,11 +41,6 @@ def render() -> None:
     display = levels.copy()
     display["观测率"] = display["rate"].map(lambda value: "No Data" if pd.isna(value) else f"{value:.3%}")
     display["95% Wilson CI"] = ["No Data" if pd.isna(low) else f"{low:.3%}–{high:.3%}" for low, high in zip(levels["ci_low"], levels["ci_high"])]
-    st.caption("指标说明")
-    help_columns = st.columns(3)
-    help_columns[0].markdown("**观测率**", help=OBSERVED_RATE_HELP)
-    help_columns[1].markdown("**95% Wilson CI**", help=WILSON_CI_HELP)
-    help_columns[2].markdown("**样本质量**", help=SAMPLE_QUALITY_HELP)
     st.dataframe(
         display[[
             "level", "trials", "successes", "观测率",
@@ -74,7 +69,7 @@ def render() -> None:
         hide_index=True,
         width="stretch",
     )
-    st.caption("将鼠标移到上方三个指标旁的小问号，可查看定义和样本质量分级范围。")
+    st.caption("将鼠标停留在列标题旁的问号上，可查看指标定义和样本质量分级范围。")
     show_chart(rate_with_ci_chart(levels, "level", "技能等级红色率"), "skill-level-ci")
     table = comparison_table(pairwise_level_comparisons(grouped))
     if table.empty:
