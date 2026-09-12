@@ -145,8 +145,9 @@ def validate_material_entry(
     observed_at: DateTime | None = None,
 ) -> ObservationInput:
     """Validate and normalize one 官匠营 production batch."""
-    if red_count is not None and orange_count is not None and red_count != orange_count:
-        raise ValueError("红品数量参数不一致")
+    # red_count and orange_count are independent material outcomes. The
+    # orange-to-red fallback is only used when red_count is omitted by a
+    # legacy caller; when both are supplied they must not be compared.
     resolved_red = red_count if red_count is not None else orange_count
     return ObservationInput(
         category_type=MATERIAL_PRODUCTION,
