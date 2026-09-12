@@ -288,6 +288,19 @@ class ObservationRepository:
                 elif key == "session_id" and value is not None:
                     value = UUID(str(value))
                 setattr(observation, key, value)
+        # Normalize category-specific quality fields on edits just as on adds.
+        effective_category = self.session.get(Category, observation.category_id)
+        if effective_category and effective_category.category_type == MATERIAL_PRODUCTION:
+            red = observation.red_count
+            orange = observation.orange_count
+            if red is None or red < 0 or red > observation.attempt_count:
+                raise ValueError("官匠营红品数量必须在 0 到尝试次数之间")
+            if orange is not None and (orange < 0 or red + orange > observation.attempt_count):
+                raise ValueError("红品和橙品数量合计不能大于尝试次数")
+            observation.green_count = None
+            observation.blue_count = None
+            observation.purple_count = None
+            observation.unaccounted_count = None
         self.session.flush()
         return observation
 
