@@ -222,7 +222,7 @@ def _saved_status() -> None:
     recent["红品"] = recent["red_count"].where(material_mask).map(
         lambda value: "—" if pd.isna(value) else str(int(value))
     )
-    recent["橙品"] = recent["orange_count"].where(~material_mask).map(
+    recent["橙品"] = recent["orange_count"].map(
         lambda value: "—" if pd.isna(value) else str(int(value))
     )
     st.caption("最近保存的 10 条原始记录")
