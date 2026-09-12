@@ -95,12 +95,17 @@ def test_select_one_health_check_against_development(postgres_factory) -> None:
 def test_material_semantics_migration_preserves_red_and_nulls_unrecorded_fields(
     postgres_factory,
 ) -> None:
-    marker = "material-semantics-migration-test"
+    marker = "category-result-semantics-migration-test"
     with postgres_factory.begin() as session:
         saved = ObservationRepository(session).add_material(
             "钢材", 11, 18, 0, remark=marker
         )
         observation_id = saved.id
+        bird = ObservationRepository(session).add(
+            "BIRD_RANDOM", "铁羽雁", 10, 1,
+            blue_count=1, purple_count=0, orange_count=0, remark=marker,
+        )
+        bird_id = bird.id
     try:
         with postgres_factory.kw["bind"].begin() as connection:
             connection.execute(text("""
@@ -113,6 +118,11 @@ def test_material_semantics_migration_preserves_red_and_nulls_unrecorded_fields(
                     unaccounted_count = 0
                 WHERE id = :observation_id
             """), {"observation_id": observation_id})
+            connection.execute(text("""
+                UPDATE observations
+                SET green_count = NULL, unaccounted_count = NULL
+                WHERE id = :bird_id
+            """), {"bird_id": bird_id})
         _migrate_observation_result_semantics(postgres_factory.kw["bind"])
         with postgres_factory() as session:
             migrated = session.get(Observation, observation_id)
@@ -122,9 +132,13 @@ def test_material_semantics_migration_preserves_red_and_nulls_unrecorded_fields(
             assert migrated.purple_count is None
             assert migrated.orange_count is None
             assert migrated.unaccounted_count is None
+            migrated_bird = session.get(Observation, bird_id)
+            assert migrated_bird.green_count == 0
+            assert migrated_bird.unaccounted_count == 0
     finally:
         with postgres_factory.begin() as session:
             ObservationRepository(session).delete(observation_id)
+            ObservationRepository(session).delete(bird_id)
 
 
 def test_reference_seed_is_idempotent_and_exact(postgres_factory) -> None:

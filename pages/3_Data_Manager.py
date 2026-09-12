@@ -51,15 +51,22 @@ def _display_frame(frame: pd.DataFrame) -> pd.DataFrame:
     displayed["项目/结果"] = frame["item"]
     displayed["等级"] = frame["level"]
     displayed["尝试次数"] = frame["attempt_count"]
-    def shown_count(column: str) -> pd.Series:
-        return frame[column].map(lambda value: "—" if pd.isna(value) else str(int(value)))
+    def shown_count(column: str, applicable: pd.Series) -> pd.Series:
+        values = frame[column]
+        return pd.Series(
+            ["—" if not applies or pd.isna(value) else str(int(value))
+             for value, applies in zip(values, applicable)],
+            index=frame.index,
+        )
 
-    displayed["绿品"] = shown_count("green_count")
-    displayed["蓝品"] = shown_count("blue_count")
-    displayed["紫品"] = shown_count("purple_count")
-    displayed["红品"] = shown_count("red_count")
-    displayed["橙品"] = shown_count("orange_count")
-    displayed["其他/未说明"] = shown_count("unaccounted_count")
+    material = frame["category_type"] == MATERIAL_PRODUCTION
+    bird = frame["category_type"].isin({BIRD_RANDOM, BIRD_TARGETED})
+    displayed["绿品"] = shown_count("green_count", ~material)
+    displayed["蓝品"] = shown_count("blue_count", ~material)
+    displayed["紫品"] = shown_count("purple_count", ~material)
+    displayed["红品"] = shown_count("red_count", material)
+    displayed["橙品"] = shown_count("orange_count", ~material)
+    displayed["其他/未说明"] = shown_count("unaccounted_count", ~material)
     displayed["会话 ID"] = frame["session_id"].astype(str)
     displayed["备注"] = frame["remark"]
     return displayed.loc[:, DISPLAY_COLUMNS]

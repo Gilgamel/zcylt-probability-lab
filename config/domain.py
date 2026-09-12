@@ -71,12 +71,18 @@ CATEGORY_RESULT_SEMANTICS = {
     BIRD_RANDOM: {
         "target_field": "orange_count",
         "target_label": "橙品",
-        "recorded_fields": ("blue_count", "purple_count", "orange_count"),
+        "recorded_fields": (
+            "green_count", "blue_count", "purple_count", "orange_count",
+            "unaccounted_count",
+        ),
     },
     BIRD_TARGETED: {
         "target_field": "orange_count",
         "target_label": "橙品",
-        "recorded_fields": ("blue_count", "purple_count", "orange_count"),
+        "recorded_fields": (
+            "green_count", "blue_count", "purple_count", "orange_count",
+            "unaccounted_count",
+        ),
     },
 }
 

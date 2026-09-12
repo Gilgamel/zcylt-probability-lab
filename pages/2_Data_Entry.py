@@ -2,6 +2,7 @@
 
 from datetime import date, datetime, time
 
+import pandas as pd
 import streamlit as st
 
 from config.domain import (
@@ -215,11 +216,12 @@ def _saved_status() -> None:
     recent = observations.head(10).copy()
     recent["日期"] = recent["observed_at"].dt.strftime("%Y-%m-%d")
     recent["会话"] = recent["session_id"].astype(str)
-    recent["红品"] = recent["red_count"].where(
-        recent["category_type"] == MATERIAL_PRODUCTION
+    material_mask = recent["category_type"] == MATERIAL_PRODUCTION
+    recent["红品"] = recent["red_count"].where(material_mask).map(
+        lambda value: "—" if pd.isna(value) else str(int(value))
     )
-    recent["橙品"] = recent["orange_count"].where(
-        recent["category_type"] != MATERIAL_PRODUCTION
+    recent["橙品"] = recent["orange_count"].where(~material_mask).map(
+        lambda value: "—" if pd.isna(value) else str(int(value))
     )
     st.caption("最近保存的 10 条原始记录")
     st.dataframe(

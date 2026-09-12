@@ -195,10 +195,15 @@ class ObservationRepository:
             unaccounted_count = None
         elif category_type in {BIRD_RANDOM, BIRD_TARGETED}:
             if any(value not in (None, 0) for value in (
-                red_count, green_count, unaccounted_count,
+                red_count,
             )):
                 raise ValueError("灵禽院只记录蓝、紫、橙三种品质")
-            red_count = green_count = unaccounted_count = None
+            # Bird entries are fully accounted: absent qualities are explicit
+            # zeroes, while the applicable outcomes (blue/purple/orange) are
+            # retained for analysis. Red is not applicable to this category.
+            red_count = None
+            green_count = 0 if green_count is None else green_count
+            unaccounted_count = 0 if unaccounted_count is None else unaccounted_count
         else:
             if red_count not in (None, 0):
                 raise ValueError("马厩不记录红品数量")
@@ -473,24 +478,26 @@ class AnalysisRepository:
             BIRD_RANDOM: and_(
                 Observation.attempt_count <= 8,
                 Observation.red_count.is_(None),
-                Observation.green_count.is_(None),
-                Observation.unaccounted_count.is_(None),
+                Observation.green_count >= 0,
+                Observation.unaccounted_count >= 0,
                 Observation.blue_count >= 0,
                 Observation.purple_count >= 0,
                 Observation.orange_count >= 0,
-                Observation.blue_count + Observation.purple_count
-                + Observation.orange_count == Observation.attempt_count,
+                Observation.green_count + Observation.blue_count
+                + Observation.purple_count + Observation.orange_count
+                + Observation.unaccounted_count == Observation.attempt_count,
             ),
             BIRD_TARGETED: and_(
                 Observation.attempt_count <= 8,
                 Observation.red_count.is_(None),
-                Observation.green_count.is_(None),
-                Observation.unaccounted_count.is_(None),
+                Observation.green_count >= 0,
+                Observation.unaccounted_count >= 0,
                 Observation.blue_count >= 0,
                 Observation.purple_count >= 0,
                 Observation.orange_count >= 0,
-                Observation.blue_count + Observation.purple_count
-                + Observation.orange_count == Observation.attempt_count,
+                Observation.green_count + Observation.blue_count
+                + Observation.purple_count + Observation.orange_count
+                + Observation.unaccounted_count == Observation.attempt_count,
             ),
         }
         if category_type is not None:

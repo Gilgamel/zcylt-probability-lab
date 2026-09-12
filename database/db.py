@@ -37,7 +37,7 @@ class DatabaseHealth:
 
 # Bump this value whenever an in-place schema migration is added. It is used
 # by Streamlit's resource cache so a warm process cannot skip the migration.
-DATABASE_SCHEMA_VERSION = "material-red-v1"
+DATABASE_SCHEMA_VERSION = "category-result-semantics-v3"
 
 
 def _streamlit_secret() -> str:
@@ -245,6 +245,18 @@ def _migrate_observation_result_semantics(engine: Engine) -> None:
                   OR observation.purple_count IS NOT NULL
                   OR observation.orange_count IS NOT NULL
                   OR observation.unaccounted_count IS NOT NULL
+              )
+        """))
+        connection.execute(text("""
+            UPDATE observations AS observation
+            SET green_count = COALESCE(observation.green_count, 0),
+                unaccounted_count = COALESCE(observation.unaccounted_count, 0)
+            FROM categories AS category
+            WHERE observation.category_id = category.id
+              AND category.category_type IN ('BIRD_RANDOM', 'BIRD_TARGETED')
+              AND (
+                  observation.green_count IS NULL
+                  OR observation.unaccounted_count IS NULL
               )
         """))
         connection.execute(text("""

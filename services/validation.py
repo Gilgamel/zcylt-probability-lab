@@ -58,8 +58,8 @@ class ObservationInput(BaseModel):
                     payload[column] = None
         elif category_type in {BIRD_RANDOM, BIRD_TARGETED}:
             for column in ("green_count", "unaccounted_count"):
-                if payload.get(column) in (None, 0):
-                    payload[column] = None
+                if payload.get(column) is None:
+                    payload[column] = 0
         return payload
 
     @field_validator("category_type")
@@ -107,14 +107,15 @@ class ObservationInput(BaseModel):
             if quality_total != self.attempt_count:
                 raise ValueError("搜索品质数量与搜索次数必须相等；未知结果请计入其他/未说明")
         if self.category_type in {BIRD_RANDOM, BIRD_TARGETED}:
-            if self.green_count is not None or self.unaccounted_count is not None:
-                raise ValueError("灵禽院不记录绿品或其他品质")
+            if self.green_count is None or self.unaccounted_count is None:
+                raise ValueError("灵禽院必须记录绿品和其他/未说明数量；未出现请填 0")
             if any(value is None for value in (
                 self.blue_count, self.purple_count, self.orange_count,
             )):
                 raise ValueError("灵禽院必须记录蓝、紫、橙三种品质")
             quality_total = sum(value for value in (
-                self.blue_count, self.purple_count, self.orange_count
+                self.green_count, self.blue_count, self.purple_count,
+                self.orange_count, self.unaccounted_count,
             ) if value is not None)
             if quality_total != self.attempt_count:
                 raise ValueError("灵禽院品质数量合计必须等于该品种的培养次数")
@@ -262,11 +263,11 @@ def validate_bird_counts(
             item=species,
             level=level,
             attempt_count=blue + purple + orange,
-            green_count=None,
+            green_count=0,
             blue_count=blue,
             purple_count=purple,
             orange_count=orange,
-            unaccounted_count=None,
+            unaccounted_count=0,
             remark=remark,
             session_id=shared_session_id,
             **_optional_observed_at(observed_at),
@@ -339,8 +340,8 @@ def validate_observation_csv(frame: pd.DataFrame) -> list[ObservationInput]:
                 ):
                     payload[column] = None
             elif category_type in {BIRD_RANDOM, BIRD_TARGETED}:
-                payload["green_count"] = None
-                payload["unaccounted_count"] = None
+                payload["green_count"] = 0 if payload["green_count"] is None else payload["green_count"]
+                payload["unaccounted_count"] = 0 if payload["unaccounted_count"] is None else payload["unaccounted_count"]
             raw_remark = row.get("remark", "")
             payload["remark"] = "" if pd.isna(raw_remark) else raw_remark
             raw_session_id = row.get("session_id", None)
