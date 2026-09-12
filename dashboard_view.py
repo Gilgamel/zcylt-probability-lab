@@ -3,7 +3,7 @@
 import pandas as pd
 import streamlit as st
 
-from charts.plotly_chart import bar, faceted_line, line
+from charts.plotly_chart import bar, line
 from config.domain import BIRD_RANDOM, BIRD_TARGETED, HORSE_SEARCH, MATERIAL_PRODUCTION
 from config.timezone import APPLICATION_TIMEZONE_NAME, application_today
 from services.analysis import dashboard_daily_metrics, recent_attempt_counts
@@ -127,16 +127,9 @@ def render_dashboard() -> None:
     with right:
         show_chart(line(daily, "date", "observed_probability", "目标品质观测概率趋势", "category"), "trend")
     show_chart(
-        faceted_line(
-            daily,
-            "date",
-            "sample_growth",
-            "各分类累计尝试次数",
-            "category",
-        ),
+        line(daily, "date", "sample_growth", "各分类累计尝试次数", "category"),
         "growth",
     )
     st.caption(
-        "每个分类独立成图并使用相同纵轴尺度；无新增数据的日期保持不变。"
-        "这样数值完全相同的分类也不会互相遮挡。"
+        "三类数据合并在同一张图中，按图例区分；无新增数据的日期保持不变。"
     )

@@ -144,10 +144,12 @@ def _edit_fields(row: pd.Series) -> dict[str, object]:
         )
         quality_columns = st.columns(2)
         values["red_count"] = quality_columns[0].number_input(
-            "红品数量", min_value=0, value=int(row["red_count"])
+            "红品数量", min_value=0,
+            value=0 if pd.isna(row["red_count"]) else int(row["red_count"]),
         )
         values["orange_count"] = quality_columns[1].number_input(
-            "橙品数量", min_value=0, value=int(row["orange_count"] or 0)
+            "橙品数量", min_value=0,
+            value=0 if pd.isna(row["orange_count"]) else int(row["orange_count"]),
         )
     elif category_type in {BIRD_RANDOM, BIRD_TARGETED}:
         quality_columns = st.columns(3)
