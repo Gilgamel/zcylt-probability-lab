@@ -187,11 +187,13 @@ class ObservationRepository:
             if any(value not in (None, 0) for value in (
                 green_count, blue_count, purple_count, unaccounted_count,
             )):
-                raise ValueError("官匠营只记录红品数量")
+                raise ValueError("官匠营只记录红品和橙品数量")
             red_count = red_count if red_count is not None else orange_count
             if red_count is None or red_count < 0 or red_count > attempt_count:
                 raise ValueError("官匠营红品数量必须在 0 到尝试次数之间")
-            green_count = blue_count = purple_count = orange_count = None
+            if orange_count is not None and red_count + orange_count > attempt_count:
+                raise ValueError("红品和橙品数量合计不能大于尝试次数")
+            green_count = blue_count = purple_count = None
             unaccounted_count = None
         elif category_type in {BIRD_RANDOM, BIRD_TARGETED}:
             if any(value not in (None, 0) for value in (
@@ -459,10 +461,14 @@ class AnalysisRepository:
                 Observation.red_count.is_not(None),
                 Observation.red_count >= 0,
                 Observation.red_count <= Observation.attempt_count,
+                or_(Observation.orange_count.is_(None), Observation.orange_count >= 0),
+                or_(
+                    Observation.orange_count.is_(None),
+                    Observation.red_count + Observation.orange_count <= Observation.attempt_count,
+                ),
                 Observation.green_count.is_(None),
                 Observation.blue_count.is_(None),
                 Observation.purple_count.is_(None),
-                Observation.orange_count.is_(None),
                 Observation.unaccounted_count.is_(None),
             ),
             HORSE_SEARCH: and_(

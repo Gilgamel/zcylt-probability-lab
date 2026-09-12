@@ -58,7 +58,7 @@ CATEGORY_RESULT_SEMANTICS = {
     MATERIAL_PRODUCTION: {
         "target_field": "red_count",
         "target_label": "红品",
-        "recorded_fields": ("red_count",),
+        "recorded_fields": ("orange_count", "red_count"),
     },
     HORSE_SEARCH: {
         "target_field": "orange_count",

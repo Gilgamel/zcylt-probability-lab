@@ -87,14 +87,16 @@ def _material_entry(observed_date: date) -> None:
             ),
         )
         quantity = left.number_input("生产数量", min_value=1, value=default_quantity, step=1)
-        red_count = right.number_input("红品数量", min_value=0, value=0, step=1)
+        quality_columns = st.columns(2)
+        red_count = quality_columns[0].number_input("红品数量", min_value=0, value=0, step=1)
+        orange_count = quality_columns[1].number_input("橙品数量", min_value=0, value=0, step=1)
         remark = st.text_area("备注", max_chars=500, key="material-remark")
         submitted = st.form_submit_button("保存官匠营记录", type="primary", width="stretch")
     if submitted:
         try:
             record = validate_material_entry(
                 material=material, skill_level=skill, quantity=quantity,
-                red_count=red_count, remark=remark,
+                red_count=red_count, orange_count=orange_count, remark=remark,
                 observed_at=datetime.combine(observed_date, time.min),
             )
         except ValueError as exc:

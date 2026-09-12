@@ -32,8 +32,8 @@ DISPLAY_COLUMNS = (
     "绿品",
     "蓝品",
     "紫品",
-    "红品",
     "橙品",
+    "红品",
     "其他/未说明",
     "会话 ID",
     "备注",
@@ -64,8 +64,8 @@ def _display_frame(frame: pd.DataFrame) -> pd.DataFrame:
     displayed["绿品"] = shown_count("green_count", ~material)
     displayed["蓝品"] = shown_count("blue_count", ~material)
     displayed["紫品"] = shown_count("purple_count", ~material)
-    displayed["红品"] = shown_count("red_count", material)
     displayed["橙品"] = shown_count("orange_count", ~material)
+    displayed["红品"] = shown_count("red_count", material)
     displayed["其他/未说明"] = shown_count("unaccounted_count", ~material)
     displayed["会话 ID"] = frame["session_id"].astype(str)
     displayed["备注"] = frame["remark"]
@@ -142,8 +142,12 @@ def _edit_fields(row: pd.Series) -> dict[str, object]:
         values["attempt_count"] = st.number_input(
             "生产数量", min_value=1, value=int(row["attempt_count"])
         )
-        values["red_count"] = st.number_input(
+        quality_columns = st.columns(2)
+        values["red_count"] = quality_columns[0].number_input(
             "红品数量", min_value=0, value=int(row["red_count"])
+        )
+        values["orange_count"] = quality_columns[1].number_input(
+            "橙品数量", min_value=0, value=int(row["orange_count"] or 0)
         )
     elif category_type in {BIRD_RANDOM, BIRD_TARGETED}:
         quality_columns = st.columns(3)

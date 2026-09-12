@@ -83,7 +83,7 @@ DATABASE_URL = "postgresql+psycopg://USER:PASSWORD@HOST/DATABASE?sslmode=require
 - 检查 PostgreSQL 连接；
 - 创建尚不存在的表和索引；
 - 幂等添加官匠营 `red_count`，将旧官匠营红品值从兼容字段迁移过去；
-- 将官匠营从未采集的颜色字段规范为 `NULL`，不改动尝试次数或红品数量；
+- 将官匠营未录入的绿、蓝、紫、其他字段规范为 `NULL`，并支持同时记录橙品数量；
 - 插入缺失的分类、项目、显示概率和默认设置。
 
 初始化不会删除表、清空观测、覆盖已有设置或构造替代数据源。后续结构变更应通过 Alembic 迁移完成。

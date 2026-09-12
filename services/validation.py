@@ -48,11 +48,13 @@ class ObservationInput(BaseModel):
         payload = dict(value)
         category_type = payload.get("category_type")
         if category_type == MATERIAL_PRODUCTION:
-            if payload.get("red_count") is None:
+            legacy_orange = payload.get("red_count") is None
+            if legacy_orange:
                 payload["red_count"] = payload.get("orange_count")
+                if payload.get("orange_count") in (None, 0):
+                    payload["orange_count"] = None
             for column in (
-                "green_count", "blue_count", "purple_count",
-                "orange_count", "unaccounted_count",
+                "green_count", "blue_count", "purple_count", "unaccounted_count",
             ):
                 if payload.get(column) in (None, 0):
                     payload[column] = None
@@ -88,11 +90,12 @@ class ObservationInput(BaseModel):
                 raise ValueError("官匠营必须记录红品数量")
             if self.red_count > self.attempt_count:
                 raise ValueError("红品数量不能大于尝试次数")
+            if self.orange_count is not None and self.red_count + self.orange_count > self.attempt_count:
+                raise ValueError("红品和橙品数量合计不能大于尝试次数")
             if any(value is not None for value in (
-                self.green_count, self.blue_count, self.purple_count,
-                self.orange_count, self.unaccounted_count,
+                self.green_count, self.blue_count, self.purple_count, self.unaccounted_count,
             )):
-                raise ValueError("官匠营只记录红品数量，其他品质应为未记录")
+                raise ValueError("官匠营只记录红品和橙品数量")
             return self
         if self.red_count is not None:
             raise ValueError("马厩和灵禽院不记录红品数量")
@@ -151,6 +154,7 @@ def validate_material_entry(
         level=skill_level,
         attempt_count=quantity,
         red_count=resolved_red,
+        orange_count=orange_count,
         remark=remark,
         session_id=session_id or uuid4(),
         **_optional_observed_at(observed_at),
