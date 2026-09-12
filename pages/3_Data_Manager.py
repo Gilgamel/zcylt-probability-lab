@@ -64,7 +64,8 @@ def _display_frame(frame: pd.DataFrame) -> pd.DataFrame:
     displayed["绿品"] = shown_count("green_count", ~material)
     displayed["蓝品"] = shown_count("blue_count", ~material)
     displayed["紫品"] = shown_count("purple_count", ~material)
-    displayed["橙品"] = shown_count("orange_count", ~material)
+    # 官匠营现在也记录橙品；只有红品对马厩/灵禽院不适用。
+    displayed["橙品"] = shown_count("orange_count", pd.Series(True, index=frame.index))
     displayed["红品"] = shown_count("red_count", material)
     displayed["其他/未说明"] = shown_count("unaccounted_count", ~material)
     displayed["会话 ID"] = frame["session_id"].astype(str)
