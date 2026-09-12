@@ -16,6 +16,7 @@ EXPORT_COLUMNS = (
     "green_count",
     "blue_count",
     "purple_count",
+    "red_count",
     "orange_count",
     "unaccounted_count",
     "remark",

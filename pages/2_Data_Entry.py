@@ -39,6 +39,7 @@ def _save(record: ObservationInput) -> None:
             green_count=record.green_count,
             blue_count=record.blue_count,
             purple_count=record.purple_count,
+            red_count=record.red_count,
             orange_count=record.orange_count,
             unaccounted_count=record.unaccounted_count,
             session_id=record.session_id,
@@ -60,6 +61,7 @@ def _save_many(records: list[ObservationInput]) -> None:
                 green_count=record.green_count,
                 blue_count=record.blue_count,
                 purple_count=record.purple_count,
+                red_count=record.red_count,
                 orange_count=record.orange_count,
                 unaccounted_count=record.unaccounted_count,
                 session_id=record.session_id,
@@ -84,16 +86,14 @@ def _material_entry(observed_date: date) -> None:
             ),
         )
         quantity = left.number_input("生产数量", min_value=1, value=default_quantity, step=1)
-        red_count = right.number_input("红色数量", min_value=0, value=0, step=1)
+        red_count = right.number_input("红品数量", min_value=0, value=0, step=1)
         remark = st.text_area("备注", max_chars=500, key="material-remark")
         submitted = st.form_submit_button("保存官匠营记录", type="primary", width="stretch")
     if submitted:
         try:
             record = validate_material_entry(
                 material=material, skill_level=skill, quantity=quantity,
-                # The unified database column is named orange_count, but 官匠营
-                # calls this outcome 红色 in the game-facing UI.
-                orange_count=red_count, remark=remark,
+                red_count=red_count, remark=remark,
                 observed_at=datetime.combine(observed_date, time.min),
             )
         except ValueError as exc:
@@ -201,16 +201,21 @@ def _saved_status() -> None:
     if observations.empty:
         st.info("数据库中还没有观测记录。")
         return
+    observations["目标结果"] = observations["orange_count"]
+    material_mask = observations["category_type"] == MATERIAL_PRODUCTION
+    observations.loc[material_mask, "目标结果"] = observations.loc[
+        material_mask, "red_count"
+    ]
     grouped = observations.groupby("category", as_index=False).agg(
         记录数=("id", "count"),
         尝试次数=("attempt_count", "sum"),
-        目标品质数=("orange_count", "sum"),
+        目标结果数=("目标结果", "sum"),
     )
     st.dataframe(grouped, hide_index=True, width="stretch")
     recent = observations.head(10).copy()
     recent["日期"] = recent["observed_at"].dt.strftime("%Y-%m-%d")
     recent["会话"] = recent["session_id"].astype(str)
-    recent["红色"] = recent["orange_count"].where(
+    recent["红品"] = recent["red_count"].where(
         recent["category_type"] == MATERIAL_PRODUCTION
     )
     recent["橙品"] = recent["orange_count"].where(
@@ -218,7 +223,7 @@ def _saved_status() -> None:
     )
     st.caption("最近保存的 10 条原始记录")
     st.dataframe(
-        recent[["日期", "category", "item", "level", "attempt_count", "红色", "橙品", "会话", "remark"]]
+        recent[["日期", "category", "item", "level", "attempt_count", "红品", "橙品", "会话", "remark"]]
         .rename(columns={
             "category": "分类", "item": "项目/结果", "level": "等级",
             "attempt_count": "尝试次数", "remark": "备注",

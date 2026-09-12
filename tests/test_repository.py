@@ -67,7 +67,7 @@ def test_observation_crud_and_accumulation(postgres_factory) -> None:
                 select(func.count()).select_from(Observation).where(Observation.remark == marker)
             )
             totals = session.execute(
-                select(func.sum(Observation.attempt_count), func.sum(Observation.orange_count))
+                select(func.sum(Observation.attempt_count), func.sum(Observation.red_count))
                 .where(Observation.remark == marker)
             ).one()
             assert count == 2
@@ -76,11 +76,16 @@ def test_observation_crud_and_accumulation(postgres_factory) -> None:
         sleep(0.02)
         with postgres_factory.begin() as session:
             ObservationRepository(session).update(
-                ids[0], level=10, attempt_count=20, orange_count=2, remark=marker
+                ids[0], level=10, attempt_count=20, red_count=2, remark=marker
             )
         with postgres_factory() as session:
             edited = session.get(Observation, ids[0])
-            assert (edited.level, edited.attempt_count, edited.orange_count) == (10, 20, 2)
+            assert (edited.level, edited.attempt_count, edited.red_count) == (10, 20, 2)
+            assert edited.green_count is None
+            assert edited.blue_count is None
+            assert edited.purple_count is None
+            assert edited.orange_count is None
+            assert edited.unaccounted_count is None
             assert edited.updated_at > original_updated_at
     finally:
         with postgres_factory.begin() as session:

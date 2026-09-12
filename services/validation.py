@@ -29,14 +29,38 @@ class ObservationInput(BaseModel):
     item: str
     level: int = Field(gt=0)
     attempt_count: int = Field(gt=0)
-    green_count: int = Field(default=0, ge=0)
-    blue_count: int = Field(default=0, ge=0)
-    purple_count: int = Field(default=0, ge=0)
-    orange_count: int = Field(default=0, ge=0)
-    unaccounted_count: int = Field(default=0, ge=0)
+    green_count: int | None = Field(default=None, ge=0)
+    blue_count: int | None = Field(default=None, ge=0)
+    purple_count: int | None = Field(default=None, ge=0)
+    red_count: int | None = Field(default=None, ge=0)
+    orange_count: int | None = Field(default=None, ge=0)
+    unaccounted_count: int | None = Field(default=None, ge=0)
     session_id: UUID = Field(default_factory=uuid4)
     observed_at: DateTime = Field(default_factory=application_now)
     remark: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_category_fields(cls, value):
+        """Read old zero-filled/material-orange payloads without inventing data."""
+        if not isinstance(value, Mapping):
+            return value
+        payload = dict(value)
+        category_type = payload.get("category_type")
+        if category_type == MATERIAL_PRODUCTION:
+            if payload.get("red_count") is None:
+                payload["red_count"] = payload.get("orange_count")
+            for column in (
+                "green_count", "blue_count", "purple_count",
+                "orange_count", "unaccounted_count",
+            ):
+                if payload.get(column) in (None, 0):
+                    payload[column] = None
+        elif category_type in {BIRD_RANDOM, BIRD_TARGETED}:
+            for column in ("green_count", "unaccounted_count"):
+                if payload.get(column) in (None, 0):
+                    payload[column] = None
+        return payload
 
     @field_validator("category_type")
     @classmethod
@@ -59,18 +83,40 @@ class ObservationInput(BaseModel):
             raise ValueError("官匠营技能等级必须是 9、10、11 或 12")
         if self.category_type in {HORSE_SEARCH, BIRD_RANDOM, BIRD_TARGETED} and self.attempt_count > 8:
             raise ValueError("搜索会话最多包含 8 次")
-        quality_total = (
-            self.green_count + self.blue_count + self.purple_count
-            + self.orange_count + self.unaccounted_count
-        )
-        if quality_total > self.attempt_count:
-            raise ValueError("品质数量合计不能大于尝试次数")
-        if self.category_type == HORSE_SEARCH and quality_total != self.attempt_count:
-            raise ValueError("搜索品质数量与搜索次数必须相等；未知结果请计入其他/未说明")
+        if self.category_type == MATERIAL_PRODUCTION:
+            if self.red_count is None:
+                raise ValueError("官匠营必须记录红品数量")
+            if self.red_count > self.attempt_count:
+                raise ValueError("红品数量不能大于尝试次数")
+            if any(value is not None for value in (
+                self.green_count, self.blue_count, self.purple_count,
+                self.orange_count, self.unaccounted_count,
+            )):
+                raise ValueError("官匠营只记录红品数量，其他品质应为未记录")
+            return self
+        if self.red_count is not None:
+            raise ValueError("马厩和灵禽院不记录红品数量")
+        if self.category_type == HORSE_SEARCH:
+            qualities = (
+                self.green_count, self.blue_count, self.purple_count,
+                self.orange_count, self.unaccounted_count,
+            )
+            if any(value is None for value in qualities):
+                raise ValueError("马厩必须记录全部品质数量")
+            quality_total = sum(value for value in qualities if value is not None)
+            if quality_total != self.attempt_count:
+                raise ValueError("搜索品质数量与搜索次数必须相等；未知结果请计入其他/未说明")
         if self.category_type in {BIRD_RANDOM, BIRD_TARGETED}:
-            if self.green_count or self.unaccounted_count:
-                raise ValueError("灵禽院结果只允许蓝、紫、橙三种品质")
-            if self.blue_count + self.purple_count + self.orange_count != self.attempt_count:
+            if self.green_count is not None or self.unaccounted_count is not None:
+                raise ValueError("灵禽院不记录绿品或其他品质")
+            if any(value is None for value in (
+                self.blue_count, self.purple_count, self.orange_count,
+            )):
+                raise ValueError("灵禽院必须记录蓝、紫、橙三种品质")
+            quality_total = sum(value for value in (
+                self.blue_count, self.purple_count, self.orange_count
+            ) if value is not None)
+            if quality_total != self.attempt_count:
                 raise ValueError("灵禽院品质数量合计必须等于该品种的培养次数")
         return self
 
@@ -88,18 +134,22 @@ def validate_material_entry(
     material: str,
     skill_level: int,
     quantity: int,
-    orange_count: int,
+    red_count: int | None = None,
+    orange_count: int | None = None,
     remark: str = "",
     session_id: UUID | None = None,
     observed_at: DateTime | None = None,
 ) -> ObservationInput:
     """Validate and normalize one 官匠营 production batch."""
+    if red_count is not None and orange_count is not None and red_count != orange_count:
+        raise ValueError("红品数量参数不一致")
+    resolved_red = red_count if red_count is not None else orange_count
     return ObservationInput(
         category_type=MATERIAL_PRODUCTION,
         item=material,
         level=skill_level,
         attempt_count=quantity,
-        orange_count=orange_count,
+        red_count=resolved_red,
         remark=remark,
         session_id=session_id or uuid4(),
         **_optional_observed_at(observed_at),
@@ -212,9 +262,11 @@ def validate_bird_counts(
             item=species,
             level=level,
             attempt_count=blue + purple + orange,
+            green_count=None,
             blue_count=blue,
             purple_count=purple,
             orange_count=orange,
+            unaccounted_count=None,
             remark=remark,
             session_id=shared_session_id,
             **_optional_observed_at(observed_at),
@@ -241,7 +293,7 @@ class ProductionInput(BaseModel):
             item=self.material,
             level=self.skill_level,
             attempt_count=self.quantity,
-            orange_count=self.red_quantity,
+            red_count=self.red_quantity,
             observed_at=self.datetime,
             remark=self.remark,
         )
@@ -250,7 +302,7 @@ class ProductionInput(BaseModel):
 
 CSV_COLUMNS = (
     "observed_at", "category_type", "item", "level", "attempt_count",
-    "green_count", "blue_count", "purple_count", "orange_count",
+    "green_count", "blue_count", "purple_count", "red_count", "orange_count",
     "unaccounted_count", "remark",
     "session_id",
 )
@@ -266,9 +318,29 @@ def validate_observation_csv(frame: pd.DataFrame) -> list[ObservationInput]:
     errors: list[str] = []
     for position, row in frame.iterrows():
         try:
-            payload = {column: row.get(column, 0) for column in CSV_COLUMNS}
-            for column in ("green_count", "blue_count", "purple_count", "orange_count", "unaccounted_count"):
-                payload[column] = 0 if pd.isna(payload[column]) else payload[column]
+            payload = {column: row.get(column, None) for column in CSV_COLUMNS}
+            for column in (
+                "green_count", "blue_count", "purple_count", "red_count",
+                "orange_count", "unaccounted_count",
+            ):
+                payload[column] = None if pd.isna(payload[column]) else payload[column]
+            category_type = payload.get("category_type")
+            if category_type == MATERIAL_PRODUCTION:
+                # Backward compatibility for exports created before red_count
+                # existed: the material orange_count column held red results.
+                payload["red_count"] = (
+                    payload["red_count"]
+                    if payload["red_count"] is not None
+                    else payload["orange_count"]
+                )
+                for column in (
+                    "green_count", "blue_count", "purple_count",
+                    "orange_count", "unaccounted_count",
+                ):
+                    payload[column] = None
+            elif category_type in {BIRD_RANDOM, BIRD_TARGETED}:
+                payload["green_count"] = None
+                payload["unaccounted_count"] = None
             raw_remark = row.get("remark", "")
             payload["remark"] = "" if pd.isna(raw_remark) else raw_remark
             raw_session_id = row.get("session_id", None)

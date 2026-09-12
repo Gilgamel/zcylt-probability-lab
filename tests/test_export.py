@@ -15,8 +15,8 @@ def _source_frame() -> pd.DataFrame:
         "observed_at": pd.Timestamp("2026-08-14"),
         "category": "官匠营", "category_type": "MATERIAL_PRODUCTION",
         "item": "丝线", "level": 9, "attempt_count": 18,
-        "green_count": 0, "blue_count": 0, "purple_count": 0,
-        "orange_count": 1, "unaccounted_count": 0,
+        "green_count": None, "blue_count": None, "purple_count": None,
+        "red_count": 1, "orange_count": None, "unaccounted_count": None,
         "remark": "中文备注", "created_at": now, "updated_at": now,
     }])
 
@@ -25,6 +25,8 @@ def test_export_uses_exact_documented_column_order() -> None:
     exported = observation_export_frame(_source_frame())
     assert tuple(exported.columns) == EXPORT_COLUMNS
     assert exported.loc[0, "observed_at"] == "2026-08-14"
+    assert exported.loc[0, "red_count"] == 1
+    assert pd.isna(exported.loc[0, "orange_count"])
 
 
 def test_csv_is_excel_compatible_utf8_and_preserves_chinese() -> None:

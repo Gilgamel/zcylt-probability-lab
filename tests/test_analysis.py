@@ -18,12 +18,12 @@ from services.statistics import apply_holm_correction, calculate_two_proportion_
 
 
 def test_aggregate_proportion_empty_is_no_data() -> None:
-    result = aggregate_proportion(pd.DataFrame(columns=["attempts", "orange"]))
+    result = aggregate_proportion(pd.DataFrame(columns=["attempts", "red"]))
     assert result.observed_rate is None
 
 
 def test_complete_level_table_includes_no_data_levels() -> None:
-    frame = pd.DataFrame([{"level": 10, "attempts": 100, "orange": 3}])
+    frame = pd.DataFrame([{"level": 10, "attempts": 100, "red": 3}])
     result = complete_level_table(frame)
     assert result["level"].tolist() == [9, 10, 11, 12]
     assert result.loc[result["level"] == 9, "sample_quality"].item() == "No Data"
@@ -32,20 +32,27 @@ def test_complete_level_table_includes_no_data_levels() -> None:
 
 def test_cumulative_daily_uses_weighted_raw_counts() -> None:
     frame = pd.DataFrame([
-        {"date": pd.Timestamp("2026-01-01"), "attempts": 10, "orange": 1},
-        {"date": pd.Timestamp("2026-01-02"), "attempts": 90, "orange": 0},
+        {"date": pd.Timestamp("2026-08-18"), "attempts": 36, "red": 1},
+        {"date": pd.Timestamp("2026-08-19"), "attempts": 18, "red": 2},
+        {"date": pd.Timestamp("2026-08-20"), "attempts": 18, "red": 1},
+        {"date": pd.Timestamp("2026-08-21"), "attempts": 18, "red": 0},
     ])
     result = cumulative_daily(frame)
-    assert result.iloc[-1]["rate"] == pytest.approx(0.01)
-    assert result["daily_rate"].tolist() == pytest.approx([0.1, 0.0])
-    assert result.iloc[-1]["cumulative_attempts"] == 100
+    assert result["daily_rate"].tolist() == pytest.approx([
+        1 / 36, 2 / 18, 1 / 18, 0,
+    ])
+    assert result["rate"].tolist() == pytest.approx([
+        1 / 36, 3 / 54, 4 / 72, 4 / 90,
+    ])
+    assert result.iloc[-1]["cumulative_attempts"] == 90
+    assert result.iloc[-1]["cumulative_red"] == 4
 
 
 def test_dashboard_metrics_are_grouped_by_category() -> None:
     frame = pd.DataFrame([
-        {"date": "2026-01-01", "category": "A", "category_type": "A", "attempt_count": 10, "orange_count": 1},
-        {"date": "2026-01-01", "category": "B", "category_type": "B", "attempt_count": 5, "orange_count": 1},
-        {"date": "2026-01-02", "category": "A", "category_type": "A", "attempt_count": 20, "orange_count": 1},
+        {"date": "2026-01-01", "category": "A", "category_type": "A", "attempt_count": 10, "target_count": 1},
+        {"date": "2026-01-01", "category": "B", "category_type": "B", "attempt_count": 5, "target_count": 1},
+        {"date": "2026-01-02", "category": "A", "category_type": "A", "attempt_count": 20, "target_count": 1},
     ])
     result = dashboard_daily_metrics(frame)
     assert result["sample_growth"].tolist() == [10, 5, 30, 5]
@@ -57,9 +64,9 @@ def test_dashboard_metrics_are_grouped_by_category() -> None:
 
 def test_level_comparisons_only_use_available_pairs() -> None:
     frame = pd.DataFrame([
-        {"level": 9, "attempts": 100, "orange": 1},
-        {"level": 10, "attempts": 100, "orange": 10},
-        {"level": 12, "attempts": 100, "orange": 20},
+        {"level": 9, "attempts": 100, "red": 1},
+        {"level": 10, "attempts": 100, "red": 10},
+        {"level": 12, "attempts": 100, "red": 20},
     ])
     comparisons = pairwise_level_comparisons(frame)
     assert [(item.label_a, item.label_b) for item in comparisons] == [("9", "10"), ("9", "12")]
@@ -68,8 +75,8 @@ def test_level_comparisons_only_use_available_pairs() -> None:
 
 def test_comparison_table_has_raw_and_holm_p() -> None:
     source = pd.DataFrame([
-        {"level": 9, "attempts": 100, "orange": 1},
-        {"level": 10, "attempts": 100, "orange": 10},
+        {"level": 9, "attempts": 100, "red": 1},
+        {"level": 10, "attempts": 100, "red": 10},
     ])
     table = comparison_table(pairwise_level_comparisons(source))
     assert {"raw_p", "holm_p", "percentage_point_difference"}.issubset(table.columns)

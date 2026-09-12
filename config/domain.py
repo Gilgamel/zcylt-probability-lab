@@ -52,6 +52,34 @@ QUALITY_LABELS = {
     "OTHER": "其他 / 未说明",
 }
 
+# Persisted result semantics by category. A field absent from ``recorded_fields``
+# is not collected for that category and must remain NULL rather than zero.
+CATEGORY_RESULT_SEMANTICS = {
+    MATERIAL_PRODUCTION: {
+        "target_field": "red_count",
+        "target_label": "红品",
+        "recorded_fields": ("red_count",),
+    },
+    HORSE_SEARCH: {
+        "target_field": "orange_count",
+        "target_label": "橙品",
+        "recorded_fields": (
+            "green_count", "blue_count", "purple_count", "orange_count",
+            "unaccounted_count",
+        ),
+    },
+    BIRD_RANDOM: {
+        "target_field": "orange_count",
+        "target_label": "橙品",
+        "recorded_fields": ("blue_count", "purple_count", "orange_count"),
+    },
+    BIRD_TARGETED: {
+        "target_field": "orange_count",
+        "target_label": "橙品",
+        "recorded_fields": ("blue_count", "purple_count", "orange_count"),
+    },
+}
+
 # Official displayed values. Horse values intentionally total 99% and are
 # stored exactly as displayed; simulation normalization is always explicit.
 DISPLAYED_PROBABILITIES = {

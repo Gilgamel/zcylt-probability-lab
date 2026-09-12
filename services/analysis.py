@@ -52,7 +52,7 @@ def recent_attempt_counts(
     )
 
 
-def aggregate_proportion(frame: pd.DataFrame, success_column: str = "orange", trial_column: str = "attempts"):
+def aggregate_proportion(frame: pd.DataFrame, success_column: str = "red", trial_column: str = "attempts"):
     """Calculate a proportion from already aggregated database rows."""
     if frame.empty:
         return calculate_proportion(0, 0)
@@ -91,14 +91,14 @@ def proportion_table(
 def complete_level_table(frame: pd.DataFrame, levels: Sequence[int] = (9, 10, 11, 12)) -> pd.DataFrame:
     """Produce one row per skill level, retaining explicit No Data states."""
     grouped = (
-        frame.groupby("level", as_index=False)[["attempts", "orange"]].sum()
-        if not frame.empty else pd.DataFrame(columns=["level", "attempts", "orange"])
+        frame.groupby("level", as_index=False)[["attempts", "red"]].sum()
+        if not frame.empty else pd.DataFrame(columns=["level", "attempts", "red"])
     )
     by_level = {int(row["level"]): row for row in grouped.to_dict("records")}
     rows = []
     for level in levels:
-        row = by_level.get(level, {"attempts": 0, "orange": 0})
-        result = calculate_proportion(int(row["orange"]), int(row["attempts"]))
+        row = by_level.get(level, {"attempts": 0, "red": 0})
+        result = calculate_proportion(int(row["red"]), int(row["attempts"]))
         rows.append({
             "level": level, "successes": result.successes, "trials": result.trials,
             "rate": result.observed_rate, "ci_low": result.ci_low,
@@ -110,14 +110,14 @@ def complete_level_table(frame: pd.DataFrame, levels: Sequence[int] = (9, 10, 11
 
 def cumulative_daily(frame: pd.DataFrame) -> pd.DataFrame:
     """Calculate cumulative success rate from compact daily SQL aggregates."""
-    columns = ["date", "attempts", "orange", "daily_rate", "cumulative_attempts", "cumulative_orange", "rate"]
+    columns = ["date", "attempts", "red", "daily_rate", "cumulative_attempts", "cumulative_red", "rate"]
     if frame.empty:
         return pd.DataFrame(columns=columns)
     result = frame.sort_values("date").copy()
-    result["daily_rate"] = result["orange"] / result["attempts"]
+    result["daily_rate"] = result["red"] / result["attempts"]
     result["cumulative_attempts"] = result["attempts"].cumsum()
-    result["cumulative_orange"] = result["orange"].cumsum()
-    result["rate"] = result["cumulative_orange"] / result["cumulative_attempts"]
+    result["cumulative_red"] = result["red"].cumsum()
+    result["rate"] = result["cumulative_red"] / result["cumulative_attempts"]
     return result[columns]
 
 
@@ -134,7 +134,7 @@ def dashboard_daily_metrics(frame: pd.DataFrame) -> pd.DataFrame:
         ["category", "category_type"], sort=False
     ):
         category_daily = (
-            group.set_index("date")[["attempt_count", "orange_count"]]
+            group.set_index("date")[["attempt_count", "target_count"]]
             .reindex(all_dates, fill_value=0)
             .rename_axis("date")
             .reset_index()
@@ -142,7 +142,7 @@ def dashboard_daily_metrics(frame: pd.DataFrame) -> pd.DataFrame:
         category_daily["category"] = category
         category_daily["category_type"] = category_type
         category_daily["observed_probability"] = (
-            category_daily["orange_count"] / category_daily["attempt_count"]
+            category_daily["target_count"] / category_daily["attempt_count"]
         ).where(category_daily["attempt_count"] > 0)
         category_daily["sample_growth"] = category_daily["attempt_count"].cumsum()
         completed.append(category_daily)
@@ -159,11 +159,11 @@ def pairwise_level_comparisons(
     pairs: Sequence[tuple[int, int]] = ((9, 10), (10, 11), (11, 12), (9, 12)),
 ) -> list[ProportionComparisonResult]:
     grouped = (
-        frame.groupby("level", as_index=False)[["attempts", "orange"]].sum()
-        if not frame.empty else pd.DataFrame(columns=["level", "attempts", "orange"])
+        frame.groupby("level", as_index=False)[["attempts", "red"]].sum()
+        if not frame.empty else pd.DataFrame(columns=["level", "attempts", "red"])
     )
     values = {
-        int(row["level"]): (int(row["orange"]), int(row["attempts"]))
+        int(row["level"]): (int(row["red"]), int(row["attempts"]))
         for row in grouped.to_dict("records")
     }
     comparisons = []

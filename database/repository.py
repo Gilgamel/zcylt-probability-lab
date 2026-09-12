@@ -8,7 +8,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pandas as pd
-from sqlalchemy import and_, delete, func, or_, select, text
+from sqlalchemy import and_, case, delete, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from config.domain import BIRD_RANDOM, BIRD_TARGETED, HORSE_SEARCH, MATERIAL_PRODUCTION
@@ -35,6 +35,7 @@ OBSERVATION_COLUMNS = [
     "green_count",
     "blue_count",
     "purple_count",
+    "red_count",
     "orange_count",
     "unaccounted_count",
     "session_id",
@@ -166,11 +167,12 @@ class ObservationRepository:
         level: int,
         attempt_count: int,
         observed_at: date | datetime | None = None,
-        green_count: int = 0,
-        blue_count: int = 0,
-        purple_count: int = 0,
-        orange_count: int = 0,
-        unaccounted_count: int = 0,
+        green_count: int | None = None,
+        blue_count: int | None = None,
+        purple_count: int | None = None,
+        red_count: int | None = None,
+        orange_count: int | None = None,
+        unaccounted_count: int | None = None,
         session_id: UUID | str | None = None,
         remark: str = "",
         observation_id: int | None = None,
@@ -179,6 +181,28 @@ class ObservationRepository:
         item = ItemRepository(self.session).by_name(category_type, item_name)
         if category is None or item is None:
             raise ValueError(f"未知分类或项目：{category_type} / {item_name}")
+        # Preserve the old material API while storing its target result with
+        # explicit red semantics. Other category-specific omissions stay NULL.
+        if category_type == MATERIAL_PRODUCTION:
+            if any(value not in (None, 0) for value in (
+                green_count, blue_count, purple_count, unaccounted_count,
+            )):
+                raise ValueError("官匠营只记录红品数量")
+            red_count = red_count if red_count is not None else orange_count
+            if red_count is None or red_count < 0 or red_count > attempt_count:
+                raise ValueError("官匠营红品数量必须在 0 到尝试次数之间")
+            green_count = blue_count = purple_count = orange_count = None
+            unaccounted_count = None
+        elif category_type in {BIRD_RANDOM, BIRD_TARGETED}:
+            if any(value not in (None, 0) for value in (
+                red_count, green_count, unaccounted_count,
+            )):
+                raise ValueError("灵禽院只记录蓝、紫、橙三种品质")
+            red_count = green_count = unaccounted_count = None
+        else:
+            if red_count not in (None, 0):
+                raise ValueError("马厩不记录红品数量")
+            red_count = None
         observation = Observation(
             id=observation_id,
             session_id=UUID(str(session_id)) if session_id else uuid4(),
@@ -190,6 +214,7 @@ class ObservationRepository:
             green_count=green_count,
             blue_count=blue_count,
             purple_count=purple_count,
+            red_count=red_count,
             orange_count=orange_count,
             unaccounted_count=unaccounted_count,
             remark=remark.strip(),
@@ -203,7 +228,7 @@ class ObservationRepository:
         material_name: str,
         skill_level: int,
         quantity: int,
-        orange_quantity: int,
+        red_quantity: int,
         observed_at: date | datetime | None = None,
         remark: str = "",
     ) -> Observation:
@@ -213,7 +238,7 @@ class ObservationRepository:
             skill_level,
             quantity,
             observed_at,
-            orange_count=orange_quantity,
+            red_count=red_quantity,
             remark=remark,
         )
 
@@ -243,6 +268,7 @@ class ObservationRepository:
             "green_count",
             "blue_count",
             "purple_count",
+            "red_count",
             "orange_count",
             "unaccounted_count",
             "remark",
@@ -307,6 +333,7 @@ class ObservationRepository:
                 Observation.green_count,
                 Observation.blue_count,
                 Observation.purple_count,
+                Observation.red_count,
                 Observation.orange_count,
                 Observation.unaccounted_count,
                 Observation.session_id,
@@ -351,7 +378,7 @@ class ObservationRepository:
             columns={
                 "observed_at": "datetime", "item": "material",
                 "level": "skill_level", "attempt_count": "quantity",
-                "orange_count": "red_quantity",
+                "red_count": "red_quantity",
             }
         )[["id", "datetime", "material", "skill_level", "quantity", "red_quantity", "remark"]]
 
@@ -361,7 +388,10 @@ class ObservationRepository:
                 Category.name.label("category"), Category.category_type,
                 func.count(Observation.id).label("records"),
                 func.coalesce(func.sum(Observation.attempt_count), 0).label("attempts"),
-                func.coalesce(func.sum(Observation.orange_count), 0).label("orange"),
+                func.coalesce(func.sum(case(
+                    (Category.category_type == MATERIAL_PRODUCTION, Observation.red_count),
+                    else_=Observation.orange_count,
+                )), 0).label("target_results"),
             )
             .outerjoin(Observation, Observation.category_id == Category.id)
             .where(Category.active.is_(True))
@@ -376,7 +406,10 @@ class ObservationRepository:
                 Observation.observed_at.label("date"), Category.name.label("category"),
                 Category.category_type,
                 func.sum(Observation.attempt_count).label("attempt_count"),
-                func.sum(Observation.orange_count).label("orange_count"),
+                func.sum(case(
+                    (Category.category_type == MATERIAL_PRODUCTION, Observation.red_count),
+                    else_=Observation.orange_count,
+                )).label("target_count"),
             )
             .join(Category, Observation.category_id == Category.id)
             .group_by(
@@ -406,40 +439,56 @@ class AnalysisRepository:
 
     @staticmethod
     def _valid_observation(category_type: str | None = None):
-        quality_total = (
+        base_rules = and_(
+            Observation.attempt_count > 0,
+            Observation.level > 0,
+        )
+        horse_total = (
             Observation.green_count + Observation.blue_count
             + Observation.purple_count + Observation.orange_count
             + Observation.unaccounted_count
         )
-        base_rules = and_(
-            Observation.attempt_count > 0,
-            Observation.level > 0,
-            Observation.green_count >= 0,
-            Observation.blue_count >= 0,
-            Observation.purple_count >= 0,
-            Observation.orange_count >= 0,
-            Observation.unaccounted_count >= 0,
-            quality_total <= Observation.attempt_count,
-        )
         category_rules = {
             MATERIAL_PRODUCTION: and_(
                 Observation.level.in_((9, 10, 11, 12)),
+                Observation.red_count.is_not(None),
+                Observation.red_count >= 0,
+                Observation.red_count <= Observation.attempt_count,
+                Observation.green_count.is_(None),
+                Observation.blue_count.is_(None),
+                Observation.purple_count.is_(None),
+                Observation.orange_count.is_(None),
+                Observation.unaccounted_count.is_(None),
             ),
             HORSE_SEARCH: and_(
                 Observation.attempt_count <= 8,
-                quality_total == Observation.attempt_count,
+                Observation.red_count.is_(None),
+                Observation.green_count >= 0,
+                Observation.blue_count >= 0,
+                Observation.purple_count >= 0,
+                Observation.orange_count >= 0,
+                Observation.unaccounted_count >= 0,
+                horse_total == Observation.attempt_count,
             ),
             BIRD_RANDOM: and_(
                 Observation.attempt_count <= 8,
-                Observation.green_count == 0,
-                Observation.unaccounted_count == 0,
+                Observation.red_count.is_(None),
+                Observation.green_count.is_(None),
+                Observation.unaccounted_count.is_(None),
+                Observation.blue_count >= 0,
+                Observation.purple_count >= 0,
+                Observation.orange_count >= 0,
                 Observation.blue_count + Observation.purple_count
                 + Observation.orange_count == Observation.attempt_count,
             ),
             BIRD_TARGETED: and_(
                 Observation.attempt_count <= 8,
-                Observation.green_count == 0,
-                Observation.unaccounted_count == 0,
+                Observation.red_count.is_(None),
+                Observation.green_count.is_(None),
+                Observation.unaccounted_count.is_(None),
+                Observation.blue_count >= 0,
+                Observation.purple_count >= 0,
+                Observation.orange_count >= 0,
                 Observation.blue_count + Observation.purple_count
                 + Observation.orange_count == Observation.attempt_count,
             ),
@@ -459,7 +508,7 @@ class AnalysisRepository:
         return pd.DataFrame(list(rows), columns=columns)
 
     def dashboard_totals(self) -> pd.DataFrame:
-        columns = ["category", "category_type", "records", "items_with_data", "attempts", "orange"]
+        columns = ["category", "category_type", "records", "items_with_data", "attempts", "target_results"]
         rows = self.session.execute(
             select(
                 Category.name.label("category"),
@@ -467,7 +516,10 @@ class AnalysisRepository:
                 func.count(Observation.id).label("records"),
                 func.count(func.distinct(Observation.item_id)).label("items_with_data"),
                 func.coalesce(func.sum(Observation.attempt_count), 0).label("attempts"),
-                func.coalesce(func.sum(Observation.orange_count), 0).label("orange"),
+                func.coalesce(func.sum(case(
+                    (Category.category_type == MATERIAL_PRODUCTION, Observation.red_count),
+                    else_=Observation.orange_count,
+                )), 0).label("target_results"),
             )
             .outerjoin(
                 Observation,
@@ -483,14 +535,17 @@ class AnalysisRepository:
         return self._frame(rows, columns)
 
     def daily_totals(self) -> pd.DataFrame:
-        columns = ["date", "category", "category_type", "attempt_count", "orange_count"]
+        columns = ["date", "category", "category_type", "attempt_count", "target_count"]
         rows = self.session.execute(
             select(
                 Observation.observed_at.label("date"),
                 Category.name.label("category"),
                 Category.category_type,
                 func.sum(Observation.attempt_count).label("attempt_count"),
-                func.sum(Observation.orange_count).label("orange_count"),
+                func.sum(case(
+                    (Category.category_type == MATERIAL_PRODUCTION, Observation.red_count),
+                    else_=Observation.orange_count,
+                )).label("target_count"),
             )
             .join(Category, Observation.category_id == Category.id)
             .where(self._valid_observation())
@@ -512,14 +567,14 @@ class AnalysisRepository:
         start_date: date | None = None,
         end_date: date | None = None,
     ) -> pd.DataFrame:
-        columns = ["item", "level", "records", "attempts", "orange"]
+        columns = ["item", "level", "records", "attempts", "red"]
         statement = (
             select(
                 Item.name.label("item"),
                 Observation.level,
                 func.count(Observation.id).label("records"),
                 func.sum(Observation.attempt_count).label("attempts"),
-                func.sum(Observation.orange_count).label("orange"),
+                func.sum(Observation.red_count).label("red"),
             )
             .join(Category, Observation.category_id == Category.id)
             .join(Item, Observation.item_id == Item.id)
@@ -549,12 +604,12 @@ class AnalysisRepository:
         start_date: date | None = None,
         end_date: date | None = None,
     ) -> pd.DataFrame:
-        columns = ["date", "attempts", "orange"]
+        columns = ["date", "attempts", "red"]
         statement = (
             select(
                 Observation.observed_at.label("date"),
                 func.sum(Observation.attempt_count).label("attempts"),
-                func.sum(Observation.orange_count).label("orange"),
+                func.sum(Observation.red_count).label("red"),
             )
             .join(Category, Observation.category_id == Category.id)
             .join(Item, Observation.item_id == Item.id)

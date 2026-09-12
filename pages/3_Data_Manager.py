@@ -32,7 +32,7 @@ DISPLAY_COLUMNS = (
     "绿品",
     "蓝品",
     "紫品",
-    "红色",
+    "红品",
     "橙品",
     "其他/未说明",
     "会话 ID",
@@ -51,16 +51,15 @@ def _display_frame(frame: pd.DataFrame) -> pd.DataFrame:
     displayed["项目/结果"] = frame["item"]
     displayed["等级"] = frame["level"]
     displayed["尝试次数"] = frame["attempt_count"]
-    displayed["绿品"] = frame["green_count"]
-    displayed["蓝品"] = frame["blue_count"]
-    displayed["紫品"] = frame["purple_count"]
-    displayed["红色"] = frame["orange_count"].where(
-        frame["category_type"] == MATERIAL_PRODUCTION
-    )
-    displayed["橙品"] = frame["orange_count"].where(
-        frame["category_type"] != MATERIAL_PRODUCTION
-    )
-    displayed["其他/未说明"] = frame["unaccounted_count"]
+    def shown_count(column: str) -> pd.Series:
+        return frame[column].map(lambda value: "—" if pd.isna(value) else str(int(value)))
+
+    displayed["绿品"] = shown_count("green_count")
+    displayed["蓝品"] = shown_count("blue_count")
+    displayed["紫品"] = shown_count("purple_count")
+    displayed["红品"] = shown_count("red_count")
+    displayed["橙品"] = shown_count("orange_count")
+    displayed["其他/未说明"] = shown_count("unaccounted_count")
     displayed["会话 ID"] = frame["session_id"].astype(str)
     displayed["备注"] = frame["remark"]
     return displayed.loc[:, DISPLAY_COLUMNS]
@@ -136,8 +135,8 @@ def _edit_fields(row: pd.Series) -> dict[str, object]:
         values["attempt_count"] = st.number_input(
             "生产数量", min_value=1, value=int(row["attempt_count"])
         )
-        values["orange_count"] = st.number_input(
-            "红色数量", min_value=0, value=int(row["orange_count"])
+        values["red_count"] = st.number_input(
+            "红品数量", min_value=0, value=int(row["red_count"])
         )
     elif category_type in {BIRD_RANDOM, BIRD_TARGETED}:
         quality_columns = st.columns(3)
@@ -225,6 +224,7 @@ def _manage_one_record(filtered: pd.DataFrame) -> None:
                         green_count=validated.green_count,
                         blue_count=validated.blue_count,
                         purple_count=validated.purple_count,
+                        red_count=validated.red_count,
                         orange_count=validated.orange_count,
                         unaccounted_count=validated.unaccounted_count,
                         remark=validated.remark,
@@ -340,6 +340,7 @@ def render() -> None:
         st.info("当前筛选条件下暂无记录。")
     else:
         st.dataframe(_display_frame(filtered), hide_index=True, width="stretch")
+        st.caption("— 表示该分类未记录此结果，不代表实际结果为 0。")
 
     export_left, export_right = st.columns(2)
     export_left.download_button(

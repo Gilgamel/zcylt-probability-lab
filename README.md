@@ -82,9 +82,15 @@ DATABASE_URL = "postgresql+psycopg://USER:PASSWORD@HOST/DATABASE?sslmode=require
 
 - 检查 PostgreSQL 连接；
 - 创建尚不存在的表和索引；
+- 幂等添加官匠营 `red_count`，将旧官匠营红品值从兼容字段迁移过去；
+- 将官匠营从未采集的颜色字段规范为 `NULL`，不改动尝试次数或红品数量；
 - 插入缺失的分类、项目、显示概率和默认设置。
 
 初始化不会删除表、清空观测、覆盖已有设置或构造替代数据源。后续结构变更应通过 Alembic 迁移完成。
+
+观测结果按分类定义：官匠营只记录 `red_count`；马厩记录绿、蓝、紫、橙及
+其他/未说明；灵禽院记录蓝、紫、橙。未采集或不适用的字段保存为 `NULL`，
+与明确观测到的 0 区分。数据管理页面以 `—` 显示 NULL。
 
 默认种子包括：
 
@@ -102,7 +108,9 @@ DATABASE_URL = "postgresql+psycopg://USER:PASSWORD@HOST/DATABASE?sslmode=require
 ## CSV 导出
 
 数据管理页可以导出当前筛选或全部原始观测。CSV 使用 UTF-8 BOM，
-并保持稳定列顺序，便于 Excel 直接打开。
+并保持稳定列顺序，便于 Excel 直接打开。导出包含独立的 `red_count` 与
+`orange_count`；NULL 保持为空，不会被导出为 0。旧版官匠营 CSV 中暂存于
+`orange_count` 的红品数量仍可兼容导入。
 
 数据管理表第一列显示数据库自动生成的记录 ID；编辑/删除选择器同时显示
 日期、分类、项目、等级、数量和备注摘要，便于在操作前核对目标记录。

@@ -35,12 +35,12 @@ def test_default_material_level_is_twelve() -> None:
 @pytest.mark.parametrize(
     "payload",
     [
-        {"level": 8, "attempt_count": 18, "orange_count": 1},
-        {"level": 9, "attempt_count": 0, "orange_count": 0},
-        {"level": 9, "attempt_count": 18, "orange_count": 19},
+        {"level": 8, "attempt_count": 18, "red_count": 1},
+        {"level": 9, "attempt_count": 0, "red_count": 0},
+        {"level": 9, "attempt_count": 18, "red_count": 19},
     ],
 )
-def test_material_rejects_invalid_skill_quantity_or_orange(payload) -> None:
+def test_material_rejects_invalid_skill_quantity_or_red(payload) -> None:
     with pytest.raises(ValidationError):
         ObservationInput(
             category_type=MATERIAL_PRODUCTION, item="玉料", **payload
@@ -72,7 +72,7 @@ def test_horse_session_is_limited_and_must_be_fully_accounted() -> None:
 def test_bird_records_result_species_and_quality() -> None:
     record = ObservationInput(
         category_type=BIRD_RANDOM, item="铁羽雁", level=10,
-        attempt_count=1, orange_count=1,
+        attempt_count=1, blue_count=0, purple_count=0, orange_count=1,
     )
     assert record.item == "铁羽雁"
     assert record.orange_count == 1
@@ -80,7 +80,7 @@ def test_bird_records_result_species_and_quality() -> None:
     with pytest.raises(ValidationError):
         ObservationInput(
             category_type=BIRD_RANDOM, item="不存在的灵禽", level=10,
-            attempt_count=1, orange_count=1,
+            attempt_count=1, blue_count=0, purple_count=0, orange_count=1,
         )
 
 
@@ -103,19 +103,79 @@ def test_unified_csv_rejects_entire_file_with_source_row() -> None:
         validate_observation_csv(frame)
 
 
-@pytest.mark.parametrize("orange", [0, 18])
-def test_material_entry_accepts_boundary_orange_counts(orange: int) -> None:
+def test_legacy_material_csv_maps_orange_storage_to_red_semantics() -> None:
+    frame = pd.DataFrame([{
+        "observed_at": "2026-08-12",
+        "category_type": MATERIAL_PRODUCTION,
+        "item": "钢材",
+        "level": 11,
+        "attempt_count": 18,
+        "green_count": 0,
+        "blue_count": 0,
+        "purple_count": 0,
+        "orange_count": 0,
+        "unaccounted_count": 0,
+    }])
+    record = validate_observation_csv(frame)[0]
+    assert record.red_count == 0
+    assert record.orange_count is None
+    assert record.green_count is None
+
+
+@pytest.mark.parametrize("red", [0, 18])
+def test_material_entry_accepts_boundary_red_counts(red: int) -> None:
     record = validate_material_entry(
-        material="丝线", skill_level=9, quantity=18, orange_count=orange
+        material="丝线", skill_level=9, quantity=18, red_count=red
     )
-    assert (record.attempt_count, record.orange_count) == (18, orange)
+    assert (record.attempt_count, record.red_count) == (18, red)
+    assert record.green_count is None
+    assert record.blue_count is None
+    assert record.purple_count is None
+    assert record.orange_count is None
+    assert record.unaccounted_count is None
 
 
-def test_material_entry_rejects_orange_above_quantity() -> None:
+def test_material_entry_rejects_red_above_quantity() -> None:
     with pytest.raises(ValidationError):
         validate_material_entry(
-            material="丝线", skill_level=9, quantity=18, orange_count=19
+            material="丝线", skill_level=9, quantity=18, red_count=19
         )
+
+
+def test_legacy_material_orange_payload_becomes_red_and_zeros_become_missing() -> None:
+    record = ObservationInput(
+        category_type=MATERIAL_PRODUCTION,
+        item="钢材",
+        level=11,
+        attempt_count=18,
+        green_count=0,
+        blue_count=0,
+        purple_count=0,
+        orange_count=0,
+        unaccounted_count=0,
+    )
+    assert record.red_count == 0
+    assert record.orange_count is None
+    assert record.green_count is None
+    assert record.blue_count is None
+    assert record.purple_count is None
+    assert record.unaccounted_count is None
+
+
+def test_horse_and_bird_orange_semantics_remain_unchanged() -> None:
+    horse = validate_horse_session(
+        horse="浴火烈马", level=10, search_count=8,
+        green_count=2, blue_count=5, purple_count=1, orange_count=0,
+    )
+    assert (horse.green_count, horse.blue_count, horse.purple_count, horse.orange_count) == (2, 5, 1, 0)
+    assert horse.red_count is None
+
+    bird = validate_bird_counts(
+        level=10,
+        counts={"铁羽雁": {"BLUE": 2, "PURPLE": 1, "ORANGE": 1}},
+    )[0]
+    assert (bird.blue_count, bird.purple_count, bird.orange_count) == (2, 1, 1)
+    assert bird.red_count is None
 
 
 @pytest.mark.parametrize("search_count", [1, 8])

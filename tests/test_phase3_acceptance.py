@@ -22,7 +22,8 @@ def _add(repository: ObservationRepository, record, marker: str) -> int:
         category_type=record.category_type, item_name=record.item, level=record.level,
         attempt_count=record.attempt_count, observed_at=record.observed_at,
         green_count=record.green_count, blue_count=record.blue_count,
-        purple_count=record.purple_count, orange_count=record.orange_count,
+        purple_count=record.purple_count, red_count=record.red_count,
+        orange_count=record.orange_count,
         unaccounted_count=record.unaccounted_count, session_id=record.session_id,
         remark=marker,
     ).id

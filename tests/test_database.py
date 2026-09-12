@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.schema import CreateIndex, CreateTable
 
@@ -12,16 +12,19 @@ from database import db
 from database.db import (
     Base,
     DatabaseConfigurationError,
+    _migrate_observation_result_semantics,
     _seed_reference_data,
     test_connection as _test_connection,
 )
 from database.models import (
     Category,
     Item,
+    Observation,
     ProbabilityTarget,
     Setting,
     SkillProgression,
 )
+from database.repository import ObservationRepository
 
 
 def test_database_url_requires_postgresql_and_has_no_fallback(monkeypatch) -> None:
@@ -71,6 +74,12 @@ def test_schema_compiles_for_postgresql_with_required_tables_and_types() -> None
     assert "TIMESTAMP WITH TIME ZONE" in ddl
     assert "observed_at DATE" in ddl
     assert "session_id UUID" in ddl
+    observation_columns = Base.metadata.tables["observations"].columns
+    assert observation_columns["red_count"].nullable
+    assert all(observation_columns[name].nullable for name in (
+        "green_count", "blue_count", "purple_count", "orange_count",
+        "unaccounted_count",
+    ))
     assert "ix_observations_category_id" in indexes
     assert "ix_observations_item_id" in indexes
     assert "ix_observations_level" in indexes
@@ -81,6 +90,41 @@ def test_schema_compiles_for_postgresql_with_required_tables_and_types() -> None
 
 def test_select_one_health_check_against_development(postgres_factory) -> None:
     assert _test_connection(postgres_factory.kw["bind"])
+
+
+def test_material_semantics_migration_preserves_red_and_nulls_unrecorded_fields(
+    postgres_factory,
+) -> None:
+    marker = "material-semantics-migration-test"
+    with postgres_factory.begin() as session:
+        saved = ObservationRepository(session).add_material(
+            "钢材", 11, 18, 0, remark=marker
+        )
+        observation_id = saved.id
+    try:
+        with postgres_factory.kw["bind"].begin() as connection:
+            connection.execute(text("""
+                UPDATE observations
+                SET red_count = NULL,
+                    green_count = 0,
+                    blue_count = 0,
+                    purple_count = 0,
+                    orange_count = 0,
+                    unaccounted_count = 0
+                WHERE id = :observation_id
+            """), {"observation_id": observation_id})
+        _migrate_observation_result_semantics(postgres_factory.kw["bind"])
+        with postgres_factory() as session:
+            migrated = session.get(Observation, observation_id)
+            assert migrated.red_count == 0
+            assert migrated.green_count is None
+            assert migrated.blue_count is None
+            assert migrated.purple_count is None
+            assert migrated.orange_count is None
+            assert migrated.unaccounted_count is None
+    finally:
+        with postgres_factory.begin() as session:
+            ObservationRepository(session).delete(observation_id)
 
 
 def test_reference_seed_is_idempotent_and_exact(postgres_factory) -> None:

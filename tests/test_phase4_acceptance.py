@@ -44,28 +44,32 @@ def test_phase4_development_end_to_end_and_cleanup(postgres_factory) -> None:
                 Observation(
                     session_id=uuid4(), observed_at=today, category_id=material_category.id,
                     item_id=items.by_name(MATERIAL_PRODUCTION, "玉料").id, level=9,
-                    attempt_count=100, orange_count=4, remark=marker,
+                    attempt_count=100, red_count=4, remark=marker,
                 ),
                 Observation(
                     session_id=uuid4(), observed_at=today - timedelta(days=1),
                     category_id=material_category.id,
                     item_id=items.by_name(MATERIAL_PRODUCTION, "玉料").id, level=9,
-                    attempt_count=50, orange_count=0, remark=marker,
+                    attempt_count=50, red_count=0, remark=marker,
                 ),
                 Observation(
                     session_id=uuid4(), observed_at=today, category_id=horse_category.id,
                     item_id=items.by_name(HORSE_SEARCH, "浴火烈马").id, level=10,
-                    attempt_count=8, green_count=3, blue_count=4, orange_count=1, remark=marker,
+                    attempt_count=8, green_count=3, blue_count=4,
+                    purple_count=0, orange_count=1, unaccounted_count=0,
+                    remark=marker,
                 ),
                 Observation(
                     session_id=uuid4(), observed_at=today, category_id=bird_category.id,
                     item_id=items.by_name(BIRD_RANDOM, "铁羽雁").id, level=10,
-                    attempt_count=1, blue_count=1, remark=marker,
+                    attempt_count=1, blue_count=1, purple_count=0,
+                    orange_count=0, remark=marker,
                 ),
                 Observation(
                     session_id=uuid4(), observed_at=today, category_id=bird_category.id,
                     item_id=items.by_name(BIRD_RANDOM, "九炎鹊").id, level=10,
-                    attempt_count=1, purple_count=1, remark=marker,
+                    attempt_count=1, blue_count=0, purple_count=1,
+                    orange_count=0, remark=marker,
                 ),
             ]
             session.add_all(rows)
@@ -79,7 +83,7 @@ def test_phase4_development_end_to_end_and_cleanup(postgres_factory) -> None:
             birds = analysis.quality_summary(BIRD_RANDOM, None, 10, today, today).iloc[0]
             species = analysis.quality_by_item(BIRD_RANDOM, 10, today, today)
             sessions = analysis.session_summary(HORSE_SEARCH, "浴火烈马", 10, today, today)
-            assert (int(material.attempts), int(material.orange)) == (100, 4)
+            assert (int(material.attempts), int(material.red)) == (100, 4)
             assert (int(horse.attempts), int(horse.orange)) == (8, 1)
             assert (int(birds.attempts), int(birds.orange)) == (2, 0)
             assert int(species["attempts"].sum()) == 2

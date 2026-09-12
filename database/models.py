@@ -56,11 +56,16 @@ class Observation(Base):
     __table_args__ = (
         CheckConstraint("attempt_count > 0", name="ck_observation_attempt_positive"),
         CheckConstraint("level > 0", name="ck_observation_level_positive"),
-        CheckConstraint("green_count >= 0", name="ck_observation_green_nonnegative"),
-        CheckConstraint("blue_count >= 0", name="ck_observation_blue_nonnegative"),
-        CheckConstraint("purple_count >= 0", name="ck_observation_purple_nonnegative"),
-        CheckConstraint("orange_count >= 0", name="ck_observation_orange_nonnegative"),
-        CheckConstraint("unaccounted_count >= 0", name="ck_observation_other_nonnegative"),
+        CheckConstraint("green_count IS NULL OR green_count >= 0", name="ck_observation_green_nonnegative"),
+        CheckConstraint("blue_count IS NULL OR blue_count >= 0", name="ck_observation_blue_nonnegative"),
+        CheckConstraint("purple_count IS NULL OR purple_count >= 0", name="ck_observation_purple_nonnegative"),
+        CheckConstraint("red_count IS NULL OR red_count >= 0", name="ck_observation_red_nonnegative"),
+        CheckConstraint(
+            "red_count IS NULL OR red_count <= attempt_count",
+            name="ck_observation_red_lte_attempts",
+        ),
+        CheckConstraint("orange_count IS NULL OR orange_count >= 0", name="ck_observation_orange_nonnegative"),
+        CheckConstraint("unaccounted_count IS NULL OR unaccounted_count >= 0", name="ck_observation_other_nonnegative"),
         CheckConstraint(
             "green_count + blue_count + purple_count + orange_count + "
             "unaccounted_count <= attempt_count",
@@ -84,11 +89,12 @@ class Observation(Base):
     item_id: Mapped[int] = mapped_column(ForeignKey("items.id"), index=True)
     level: Mapped[int] = mapped_column(Integer, index=True)
     attempt_count: Mapped[int] = mapped_column(Integer)
-    green_count: Mapped[int] = mapped_column(Integer, default=0)
-    blue_count: Mapped[int] = mapped_column(Integer, default=0)
-    purple_count: Mapped[int] = mapped_column(Integer, default=0)
-    orange_count: Mapped[int] = mapped_column(Integer, default=0)
-    unaccounted_count: Mapped[int] = mapped_column(Integer, default=0)
+    green_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    blue_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    purple_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    red_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    orange_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    unaccounted_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     remark: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

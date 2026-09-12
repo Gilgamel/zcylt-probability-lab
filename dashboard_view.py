@@ -20,14 +20,14 @@ def _category_card(
     title: str,
     records: int,
     attempts: int,
-    orange: int,
+    target_results: int,
     attempt_label: str,
     success_label: str,
     items_with_data: int | None = None,
     displayed: float | None = None,
 ) -> None:
     """Render compact totals for one category."""
-    result = calculate_proportion(orange, attempts)
+    result = calculate_proportion(target_results, attempts)
     st.subheader(title)
     metric_count = 4 + int(items_with_data is not None) + int(displayed is not None)
     columns = st.columns(metric_count)
@@ -38,7 +38,7 @@ def _category_card(
         columns[offset].metric("有数据材料", "No Data" if records == 0 else items_with_data)
         offset += 1
     columns[offset].metric(attempt_label, "No Data" if records == 0 else attempts)
-    columns[offset + 1].metric(success_label, "No Data" if records == 0 else orange)
+    columns[offset + 1].metric(success_label, "No Data" if records == 0 else target_results)
     columns[offset + 2].metric(
         "观测概率",
         "No Data" if result.observed_rate is None else f"{result.observed_rate:.2%}",
@@ -66,16 +66,16 @@ def render_dashboard() -> None:
         if category_type not in category_totals.index:
             return 0, 0, 0, 0
         row = category_totals.loc[category_type]
-        return int(row["records"]), int(row["items_with_data"]), int(row["attempts"]), int(row["orange"])
+        return int(row["records"]), int(row["items_with_data"]), int(row["attempts"]), int(row["target_results"])
 
-    material_records, material_items, material_attempts, material_orange = values(MATERIAL_PRODUCTION)
+    material_records, material_items, material_attempts, material_red = values(MATERIAL_PRODUCTION)
     horse_records, _, horse_attempts, horse_orange = values(HORSE_SEARCH)
     bird_records, _, bird_attempts, bird_orange = values(BIRD_RANDOM)
     targeted_records, _, targeted_attempts, targeted_orange = values(BIRD_TARGETED)
     bird_records += targeted_records
     bird_attempts += targeted_attempts
     bird_orange += targeted_orange
-    _category_card("官匠营", material_records, material_attempts, material_orange, "总生产量", "红色数量", material_items)
+    _category_card("官匠营", material_records, material_attempts, material_red, "总生产量", "红品数量", material_items)
     st.divider()
     horse_displayed = get_displayed_probabilities(HORSE_SEARCH).get("ORANGE")
     bird_displayed = (

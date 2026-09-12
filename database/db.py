@@ -208,6 +208,70 @@ def test_connection(engine: Engine | None = None) -> bool:
     return False
 
 
+def _migrate_observation_result_semantics(engine: Engine) -> None:
+    """Idempotently separate material red results from category color counts."""
+    with engine.begin() as connection:
+        connection.execute(text("LOCK TABLE observations IN SHARE ROW EXCLUSIVE MODE"))
+        connection.execute(text(
+            "ALTER TABLE observations ADD COLUMN IF NOT EXISTS red_count INTEGER"
+        ))
+        for column in (
+            "green_count", "blue_count", "purple_count", "orange_count",
+            "unaccounted_count",
+        ):
+            connection.execute(text(
+                f"ALTER TABLE observations ALTER COLUMN {column} DROP NOT NULL"
+            ))
+        connection.execute(text("""
+            UPDATE observations AS observation
+            SET red_count = COALESCE(observation.red_count, observation.orange_count),
+                green_count = NULL,
+                blue_count = NULL,
+                purple_count = NULL,
+                orange_count = NULL,
+                unaccounted_count = NULL
+            FROM categories AS category
+            WHERE observation.category_id = category.id
+              AND category.category_type = 'MATERIAL_PRODUCTION'
+              AND (
+                  observation.red_count IS NULL
+                  OR observation.green_count IS NOT NULL
+                  OR observation.blue_count IS NOT NULL
+                  OR observation.purple_count IS NOT NULL
+                  OR observation.orange_count IS NOT NULL
+                  OR observation.unaccounted_count IS NOT NULL
+              )
+        """))
+        connection.execute(text("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint
+                    WHERE conname = 'ck_observation_red_nonnegative'
+                      AND conrelid = 'observations'::regclass
+                ) THEN
+                    ALTER TABLE observations
+                    ADD CONSTRAINT ck_observation_red_nonnegative
+                    CHECK (red_count IS NULL OR red_count >= 0);
+                END IF;
+            END $$
+        """))
+        connection.execute(text("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint
+                    WHERE conname = 'ck_observation_red_lte_attempts'
+                      AND conrelid = 'observations'::regclass
+                ) THEN
+                    ALTER TABLE observations
+                    ADD CONSTRAINT ck_observation_red_lte_attempts
+                    CHECK (red_count IS NULL OR red_count <= attempt_count);
+                END IF;
+            END $$
+        """))
+
+
 def initialize_database(engine: Engine | None = None) -> None:
     """Create only missing tables and idempotently seed reference data."""
     import database.models  # noqa: F401
@@ -216,6 +280,7 @@ def initialize_database(engine: Engine | None = None) -> None:
     try:
         test_connection(target)
         Base.metadata.create_all(bind=target, checkfirst=True)
+        _migrate_observation_result_semantics(target)
         factory = sessionmaker(bind=target, class_=Session, expire_on_commit=False)
         try:
             with factory.begin() as session:

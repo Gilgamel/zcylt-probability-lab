@@ -31,6 +31,7 @@ def _add(repository: ObservationRepository, record) -> int:
         green_count=record.green_count,
         blue_count=record.blue_count,
         purple_count=record.purple_count,
+        red_count=record.red_count,
         orange_count=record.orange_count,
         unaccounted_count=record.unaccounted_count,
         session_id=record.session_id,
@@ -86,7 +87,7 @@ def test_phase2_acceptance_a_through_g(postgres_factory) -> None:
     second_process = None
     try:
         material = validate_material_entry(
-            material="丝线", skill_level=9, quantity=18, orange_count=1,
+            material="丝线", skill_level=9, quantity=18, red_count=1,
             remark=f"{marker}-A",
         )
         horse = validate_horse_session(
@@ -114,8 +115,9 @@ def test_phase2_acceptance_a_through_g(postgres_factory) -> None:
         with postgres_factory() as session:
             saved_material = session.get(Observation, material_id)
             assert (
-                saved_material.attempt_count, saved_material.orange_count
-            ) == (18, 1)
+                saved_material.attempt_count, saved_material.red_count,
+                saved_material.green_count, saved_material.orange_count,
+            ) == (18, 1, None, None)
             saved_horse = session.get(Observation, horse_id)
             assert (
                 saved_horse.attempt_count, saved_horse.green_count,

@@ -165,7 +165,7 @@ def _render_actual_summary(inputs: dict[str, Any]) -> None:
         columns = st.columns(4)
         columns[0].metric("Actual sample size", f"{trials:,}")
         outcome_label = (
-            "实际红色数"
+            "实际红品数"
             if inputs["category"] == MATERIAL_PRODUCTION
             else "实际橙品数"
         )
@@ -195,7 +195,7 @@ def _render_phase3_inference(inputs: dict[str, Any]) -> None:
             return
         test = calculate_binomial_test(int(actual), trials, probabilities)
         outcome_name = (
-            "红色率" if inputs["category"] == MATERIAL_PRODUCTION else "橙品率"
+            "红品率" if inputs["category"] == MATERIAL_PRODUCTION else "橙品率"
         )
         st.write(
             f"Exact binomial test：p={test.p_value:.6g}。"
@@ -232,7 +232,7 @@ def _material_inputs(start: date, end: date) -> dict[str, Any]:
     level = columns[1].selectbox("技能等级", SKILL_LEVELS)
     summary, _ = load_material_analysis(item, level, start, end)
     actual_trials = int(summary["attempts"].sum()) if not summary.empty else 0
-    actual_successes = int(summary["orange"].sum()) if not summary.empty else 0
+    actual_successes = int(summary["red"].sum()) if not summary.empty else 0
     st.caption("No theoretical probability target is configured for this material.")
     source = st.radio(
         "概率模型",
@@ -243,7 +243,7 @@ def _material_inputs(start: date, end: date) -> dict[str, Any]:
     )
     if source.startswith("Manual"):
         entered_probability = st.number_input(
-            "红色理论概率 (%)", min_value=0.0, max_value=100.0,
+            "红品理论概率 (%)", min_value=0.0, max_value=100.0,
             value=None, step=0.01, placeholder="必须明确输入",
         )
         probability = None if entered_probability is None else entered_probability / 100
@@ -345,7 +345,7 @@ def _choose_actual_source(inputs: dict[str, Any]) -> dict[str, Any]:
             "实际试验数", 1, MAX_TRIALS, max(1, inputs["actual_trials"] or 1_000), 1,
         ))
         outcome_label = (
-            "实际红色数"
+            "实际红品数"
             if inputs["category"] == MATERIAL_PRODUCTION
             else "实际橙品数"
         )
@@ -433,10 +433,10 @@ def render() -> None:
     )
     system = st.selectbox(
         "模型",
-        ("官匠营红色", "马厩品质", "灵禽普通培养品质", "灵禽普通培养种类等概率假设"),
+        ("官匠营红品", "马厩品质", "灵禽普通培养品质", "灵禽普通培养种类等概率假设"),
     )
     start, end = _date_controls()
-    inputs = _material_inputs(start, end) if system == "官匠营红色" else _quality_inputs(system, start, end)
+    inputs = _material_inputs(start, end) if system == "官匠营红品" else _quality_inputs(system, start, end)
     inputs = _choose_actual_source(inputs)
     signature = _run_signature(inputs, start, end)
 
