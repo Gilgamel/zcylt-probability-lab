@@ -35,6 +35,11 @@ class DatabaseHealth:
     message: str
 
 
+# Bump this value whenever an in-place schema migration is added. It is used
+# by Streamlit's resource cache so a warm process cannot skip the migration.
+DATABASE_SCHEMA_VERSION = "material-red-v1"
+
+
 def _streamlit_secret() -> str:
     """Read DATABASE_URL from Streamlit Secrets without requiring a secrets file."""
     try:

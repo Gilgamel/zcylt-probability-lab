@@ -9,6 +9,7 @@ from loguru import logger
 from charts.plotly_chart import apply_theme
 from config.settings import LOG_DIR
 from database.db import (
+    DATABASE_SCHEMA_VERSION,
     DatabaseConfigurationError,
     DatabaseUnavailableError,
     check_database_health,
@@ -50,7 +51,8 @@ def configure_page(title: str) -> None:
 
 
 @st.cache_resource
-def prepare_database() -> bool:
+def prepare_database(schema_version: str = DATABASE_SCHEMA_VERSION) -> bool:
+    """Initialize the database once per schema version and process."""
     initialize_database()
     return True
 
